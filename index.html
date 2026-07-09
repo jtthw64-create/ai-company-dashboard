@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AI 컴퍼니 상황판</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@600;700&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#F4F5F7; --card:#FFFFFF; --ink:#1E2430; --ink2:#5B6472; --ink3:#96A0AE;
+    --brand:#2B4A73; --brand-soft:#E4EBF4; --brand-line:#C2D1E2;
+    --green:#1D6B4C; --green-soft:#E1F0E8;
+    --amber:#B97A1F; --amber-soft:#F7ECD8;
+    --clay:#A8432E; --clay-soft:#F6E4DF;
+    --line:#DDE2E9; --r:10px;
+    font-size:16px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--paper);color:var(--ink);font-family:'IBM Plex Sans KR',-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;line-height:1.6;min-height:100vh}
+  .wrap{max-width:1020px;margin:0 auto;padding:28px 20px 80px}
+  .serif{font-family:'Noto Serif KR','Apple SD Gothic Neo',serif}
+  header{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;border-bottom:2px solid var(--ink);padding-bottom:14px;margin-bottom:10px;flex-wrap:wrap}
+  header .eyebrow{font-size:12px;letter-spacing:.14em;color:var(--brand);font-weight:600;margin-bottom:2px}
+  header h1{font-size:26px;font-weight:700;letter-spacing:-.01em}
+  .btn{border:1px solid var(--ink);background:var(--ink);color:#fff;border-radius:999px;padding:9px 18px;font:inherit;font-size:14px;font-weight:500;cursor:pointer;transition:transform .12s ease, background .12s}
+  .btn:hover{background:var(--brand);border-color:var(--brand)}
+  .btn:active{transform:scale(.97)}
+  .btn.ghost{background:transparent;color:var(--ink);border-color:var(--line)}
+  .btn.ghost:hover{border-color:var(--ink);background:#fff;color:var(--ink)}
+  .btn.small{padding:5px 12px;font-size:12.5px}
+  .syncbar{display:flex;align-items:center;gap:8px;justify-content:flex-end;font-size:12.5px;color:var(--ink2);margin-bottom:10px;flex-wrap:wrap}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--ink3);display:inline-block}
+  .dot.ok{background:var(--green)} .dot.syncing{background:var(--amber)} .dot.err{background:var(--clay)}
+  .syncbar button{background:none;border:none;color:var(--ink2);font:inherit;font-size:12.5px;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+  .syncbar button:hover{color:var(--ink)}
+  .stale{background:var(--amber-soft);border:1px solid var(--amber);color:#6B4A15;border-radius:var(--r);padding:10px 16px;font-size:13.5px;margin-bottom:14px;display:none}
+  .stale.show{display:block}
+  .brief{background:var(--card);border:1px solid var(--brand-line);border-left:4px solid var(--brand);border-radius:var(--r);padding:16px 20px;margin-bottom:14px}
+  .brief h2{font-size:15px;font-weight:600;color:var(--brand);margin-bottom:4px}
+  .brief .body{font-size:14.5px;white-space:pre-wrap}
+  .brief .meta{font-size:12px;color:var(--ink3);margin-top:6px}
+  .alerts{background:var(--clay-soft);border:1px solid var(--clay);border-radius:var(--r);padding:12px 18px;margin-bottom:14px;font-size:13.5px;color:#6B2A1C;display:none}
+  .alerts.show{display:block}
+  .alerts li{margin-left:18px}
+  .grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(330px,1fr))}
+  .team{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:18px 20px;display:flex;flex-direction:column;gap:10px}
+  .team .top{display:flex;justify-content:space-between;align-items:center;gap:10px}
+  .team h2{font-size:18px;font-weight:700}
+  .chip{display:inline-block;font-size:11.5px;font-weight:600;border-radius:999px;padding:2px 11px;letter-spacing:.03em;white-space:nowrap}
+  .chip.run{color:var(--green);background:var(--green-soft);border:1px solid var(--green)}
+  .chip.wait{color:var(--amber);background:var(--amber-soft);border:1px solid var(--amber)}
+  .chip.hold{color:var(--ink3);background:#EEF0F3;border:1px solid var(--ink3)}
+  .team .headline{font-size:13.5px;color:var(--ink2)}
+  .team .sec{font-size:12px;font-weight:600;color:var(--ink3);letter-spacing:.06em;margin-bottom:2px}
+  .team ul{list-style:none}
+  .team ul li{font-size:13px;padding:2px 0;border-bottom:1px dashed var(--paper)}
+  .team ul li:before{content:"·";color:var(--brand);margin-right:6px}
+  .ddayrow{display:flex;gap:6px;flex-wrap:wrap}
+  .pdday{font-weight:600;padding:1px 9px;border-radius:5px;background:var(--paper);font-size:12px;white-space:nowrap}
+  .pdday.urgent{color:var(--clay);background:var(--clay-soft)}
+  .pdday.soon{color:var(--amber);background:var(--amber-soft)}
+  .pdday.ok{color:var(--green);background:var(--green-soft)}
+  .pdday.past{color:var(--ink3)}
+  .blocker{font-size:12.5px;color:var(--clay)}
+  .lastrun{font-size:11.5px;color:var(--ink3)}
+  .pbtns{display:flex;gap:6px;flex-wrap:wrap}
+  .order{display:flex;gap:6px;margin-top:2px}
+  .order input{flex:1;border:1px solid var(--line);border-radius:6px;padding:7px 10px;font:inherit;font-size:13px;background:var(--paper)}
+  .order input:focus{outline:none;border-color:var(--brand)}
+  .reqs{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px 20px;margin-top:14px}
+  .reqs h2{font-size:15px;font-weight:600;margin-bottom:8px}
+  .req{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px dashed var(--paper);font-size:13.5px;flex-wrap:wrap}
+  .req .rchip{font-size:11px;font-weight:600;border-radius:5px;padding:1px 8px}
+  .rchip.new{color:var(--clay);background:var(--clay-soft)}
+  .rchip.seen{color:var(--amber);background:var(--amber-soft)}
+  .rchip.dispatched{color:var(--green);background:var(--green-soft)}
+  .rchip.done{color:var(--ink3);background:#EEF0F3}
+  .req .rteam{font-weight:600;color:var(--brand);white-space:nowrap}
+  .req .rtext{flex:1;min-width:160px}
+  .req .rat{font-size:11px;color:var(--ink3);white-space:nowrap}
+  .empty{background:var(--card);border:1px dashed var(--brand-line);border-radius:var(--r);padding:44px 24px;text-align:center}
+  .empty p{color:var(--ink2);margin-top:6px;font-size:14px}
+  .toast{position:sticky;bottom:16px;margin:16px auto 0;width:fit-content;background:var(--ink);color:#fff;font-size:13.5px;padding:9px 18px;border-radius:999px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:5}
+  .toast.show{opacity:1}
+  .footnote{font-size:12px;color:var(--ink3);margin-top:18px}
+  dialog{border:1px solid var(--line);border-radius:12px;padding:24px;max-width:440px;width:92%;font-family:inherit}
+  dialog::backdrop{background:rgba(30,36,48,.35)}
+  dialog h3{font-family:'Noto Serif KR',serif;font-size:18px;margin-bottom:14px}
+  dialog .f{margin-bottom:12px}
+  dialog .f label{display:block;font-size:13px;color:var(--ink2);margin-bottom:4px}
+  dialog .f input{width:100%;border:1px solid var(--line);border-radius:8px;padding:9px 11px;font:inherit;font-size:14.5px;background:#fff}
+  dialog .f input:focus{outline:none;border-color:var(--brand)}
+  dialog .f .hint{font-size:12px;color:var(--ink3);margin-top:3px}
+  dialog .dact{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
+  @media (max-width:560px){ header h1{font-size:22px} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <div class="eyebrow serif">AI COMPANY OPERATIONS</div>
+      <h1 class="serif">AI 컴퍼니 상황판</h1>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <button class="btn ghost" onclick="openSettings()">동기화 설정</button>
+      <button class="btn" onclick="refresh(true)">지금 동기화</button>
+    </div>
+  </header>
+  <div class="syncbar">
+    <span class="dot" id="syncDot"></span><span id="syncText">로컬 모드</span>
+    <span id="genAt"></span>
+  </div>
+  <div class="stale" id="staleBanner"></div>
+  <div id="app"><div class="empty"><p>불러오는 중…</p></div></div>
+  <div class="toast" id="toast"></div>
+</div>
+
+<dialog id="setDlg">
+  <h3>Gist 동기화 설정</h3>
+  <div class="f"><label>GitHub 토큰 (gist 권한만)</label><input id="sToken" type="password" placeholder="ghp_... 또는 github_pat_...">
+    <div class="hint">이 브라우저의 localStorage에만 저장됩니다. 저장소·Gist에 절대 기록하지 마세요.</div></div>
+  <div class="f"><label>Gist ID</label><input id="sGist" placeholder="company gist ID">
+    <div class="hint">Dropbox의 AI Company/gist-config.md 참조.</div></div>
+  <div class="dact">
+    <button class="btn ghost" onclick="document.getElementById('setDlg').close()">닫기</button>
+    <button class="btn" onclick="saveSettings()">저장 후 동기화</button>
+  </div>
+</dialog>
+
+<script>
+const CONFIG_KEY='ai-company-config-v1';
+const DATA_FILE='company-status.json';
+const POLL_MS=60000;
+const STALE_HOURS=16;
+let config={}, data=null, pollTimer=null, pendingRender=false, busy=false;
+
+/* ---------- 포커스 보호 ---------- */
+function isEditingFocus(){
+  const a=document.activeElement;
+  return !!a && ['INPUT','TEXTAREA','SELECT'].includes(a.tagName) && a.closest('#app');
+}
+document.addEventListener('focusout', ()=>{
+  setTimeout(()=>{ if(pendingRender && !isEditingFocus()){ pendingRender=false; render(); } }, 60);
+}, true);
+
+/* ---------- 설정 ---------- */
+function loadConfig(){ try{ config=JSON.parse(localStorage.getItem(CONFIG_KEY))||{}; }catch(e){ config={}; } }
+function persistConfig(){ try{ localStorage.setItem(CONFIG_KEY,JSON.stringify(config)); }catch(e){} }
+function openSettings(){ loadConfig();
+  document.getElementById('sToken').value=config.token||'';
+  document.getElementById('sGist').value=config.gistId||'';
+  document.getElementById('setDlg').showModal(); }
+async function saveSettings(){
+  config.token=document.getElementById('sToken').value.trim();
+  config.gistId=document.getElementById('sGist').value.trim();
+  persistConfig();
+  document.getElementById('setDlg').close();
+  await refresh(true);
+  startPolling();
+}
+
+/* ---------- Gist ---------- */
+function ghHeaders(json){ const h={Authorization:'Bearer '+config.token,Accept:'application/vnd.github+json'};
+  if(json) h['Content-Type']='application/json'; return h; }
+let lastSyncAt=null;
+function setSync(mode,msg){
+  const d=document.getElementById('syncDot'), t=document.getElementById('syncText');
+  d.className='dot '+(mode==='ok'?'ok':mode==='syncing'?'syncing':mode==='err'?'err':'');
+  if(mode==='ok') lastSyncAt=new Date();
+  const timeTxt = lastSyncAt ? ' · '+lastSyncAt.toTimeString().slice(0,5) : '';
+  t.textContent = mode==='ok'?('동기화됨'+timeTxt):mode==='syncing'?'동기화 중…':mode==='err'?('오류'+(msg?' — '+msg:'')):'로컬 모드';
+}
+async function remoteGet(){
+  const r=await fetch('https://api.github.com/gists/'+config.gistId,{headers:ghHeaders()});
+  if(!r.ok) throw new Error('HTTP '+r.status);
+  const j=await r.json(); const f=j.files&&j.files[DATA_FILE];
+  if(!f) return null;
+  let content=f.content;
+  if(f.truncated){ const rr=await fetch(f.raw_url); content=await rr.text(); }
+  return JSON.parse(content);
+}
+async function remotePut(payload){
+  const r=await fetch('https://api.github.com/gists/'+config.gistId,{method:'PATCH',
+    headers:ghHeaders(true),
+    body:JSON.stringify({files:{[DATA_FILE]:{content:JSON.stringify(payload,null,1)}}})});
+  if(!r.ok) throw new Error('HTTP '+r.status);
+}
+async function refresh(manual){
+  if(!config.token||!config.gistId){ setSync('local'); renderHint(); return; }
+  if(busy) return;
+  setSync('syncing');
+  try{
+    const remote=await remoteGet();
+    if(remote){ data=remote; if(isEditingFocus()) pendingRender=true; else render(); }
+    setSync('ok');
+  }catch(e){ setSync('err',e.message); if(manual) toast('동기화 실패: '+e.message); }
+}
+/* 변이는 pull-fresh → 적용 → push (덮어쓰기 방지) */
+async function pushMutation(fn,okMsg){
+  if(!config.token||!config.gistId){ toast('먼저 동기화 설정에서 토큰·Gist ID를 입력해 주세요'); return; }
+  busy=true; setSync('syncing');
+  try{
+    const fresh=await remoteGet();
+    if(!fresh) throw new Error('원격 데이터 없음');
+    fn(fresh);
+    await remotePut(fresh);
+    data=fresh; render(); setSync('ok');
+    if(okMsg) toast(okMsg);
+  }catch(e){ setSync('err',e.message); toast('기록 실패: '+e.message); }
+  busy=false;
+}
+function startPolling(){
+  clearInterval(pollTimer);
+  pollTimer=setInterval(()=>{ if(document.visibilityState==='visible' && !isEditingFocus()) refresh(); }, POLL_MS);
+}
+document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible') refresh(); });
+window.addEventListener('focus', ()=>refresh());
+
+/* ---------- 접수함 ---------- */
+function addRequest(team){
+  const inp=document.getElementById('ord_'+team);
+  const text=(inp&&inp.value||'').trim();
+  if(!text){ toast('지시 내용을 입력해 주세요'); return; }
+  const now=new Date().toISOString();
+  pushMutation(d=>{
+    d.requests=d.requests||[];
+    d.requests.push({id:'r-'+Date.now().toString(36),at:now,team,text,status:'new',updatedAt:now});
+  },'접수함에 기록했습니다 — 다음 비서 회차(08시/자정)에 접수됩니다');
+  if(inp) inp.value='';
+}
+function markDone(id){
+  pushMutation(d=>{
+    const r=(d.requests||[]).find(x=>x.id===id);
+    if(r){ r.status='done'; r.updatedAt=new Date().toISOString(); }
+  },'완료 처리했습니다');
+}
+
+/* ---------- 유틸 ---------- */
+function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2600); }
+function esc(s){ return (s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function ddayOf(dateStr){ if(!dateStr) return null;
+  const t=new Date().setHours(0,0,0,0); const d=new Date(dateStr+'T00:00:00');
+  const diff=Math.ceil((d-t)/864e5);
+  const label = diff>0?('D-'+diff) : diff===0?'D-DAY' : ('D+'+Math.abs(diff));
+  const cls = diff<0?'past' : diff<=2?'urgent' : diff<=6?'soon' : 'ok';
+  return {label,cls}; }
+function badgeChip(b){
+  const cls=b==='가동중'?'run':b==='보류'?'hold':'wait';
+  return `<span class="chip ${cls}">${esc(b||'대기')}</span>`;
+}
+function fmtAt(iso){ if(!iso) return ''; try{ return iso.slice(5,16).replace('T',' '); }catch(e){ return ''; } }
+function copyPromptBtn(teamId,idx){
+  const t=(data.teams||[]).find(x=>x.id===teamId);
+  const p=t&&t.prompts&&t.prompts[idx];
+  if(!p) return;
+  copyText(p.prompt,'프롬프트를 복사했습니다 — Claude에 붙여넣으세요');
+}
+function copyText(txt,msg){
+  const done=()=>toast(msg);
+  if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(txt).then(done).catch(()=>fallbackCopy(txt,done)); }
+  else fallbackCopy(txt,done);
+}
+function fallbackCopy(txt,done){ const ta=document.createElement('textarea'); ta.value=txt; document.body.appendChild(ta);
+  ta.select(); try{document.execCommand('copy');done();}catch(e){prompt('아래 내용을 복사하세요',txt);} document.body.removeChild(ta); }
+
+/* ---------- 렌더 ---------- */
+function renderHint(){
+  document.getElementById('app').innerHTML=`<div class="empty">
+    <h2 class="serif" style="font-size:18px">동기화 설정이 필요합니다</h2>
+    <p>우측 상단 [동기화 설정]에서 GitHub 토큰(gist 권한)과 company gist ID를 입력하세요.<br>ID는 관리 문서(<b>gist-config.md</b>)에 있습니다.</p></div>`;
+}
+function renderStale(){
+  const el=document.getElementById('staleBanner');
+  const g=document.getElementById('genAt');
+  if(!data||!data.generatedAt){ el.className='stale'; g.textContent=''; return; }
+  g.textContent='· 브리핑 '+fmtAt(data.generatedAt);
+  const hrs=(Date.now()-new Date(data.generatedAt).getTime())/36e5;
+  if(hrs>STALE_HOURS){
+    el.textContent=`⚠ 브리핑 지연 — 마지막 갱신이 ${Math.floor(hrs)}시간 전입니다. iMac(예약 작업 머신)이 꺼져 있을 수 있습니다.`;
+    el.className='stale show';
+  } else el.className='stale';
+}
+function render(){
+  if(!data){ renderHint(); return; }
+  renderStale();
+  const app=document.getElementById('app');
+  let html='';
+  if(data.briefing){
+    html+=`<div class="brief"><h2>최근 브리핑 ${data.briefing.type?('('+esc(data.briefing.type)+')'):''}</h2>
+      <div class="body">${esc(data.briefing.summary)}</div>
+      <div class="meta">${fmtAt(data.briefing.at)}${data.briefing.file?' · Dropbox: AI Company/'+esc(data.briefing.file):''}</div></div>`;
+  }
+  if(data.weekly){
+    html+=`<div class="brief"><h2>주간 보고</h2><div class="body">${esc(data.weekly.summary||'')}</div>
+      <div class="meta">${fmtAt(data.weekly.at)}${data.weekly.file?' · '+esc(data.weekly.file):''}</div></div>`;
+  }
+  if(data.alerts&&data.alerts.length){
+    html+=`<div class="alerts show"><b>알림</b><ul>${data.alerts.map(a=>`<li>${esc(a)}</li>`).join('')}</ul></div>`;
+  }
+  html+=`<div class="grid">`+(data.teams||[]).map(t=>{
+    const dd=(t.dday||[]).map(d=>{ const x=ddayOf(d.date); return x?`<span class="pdday ${x.cls}" title="${esc(d.date)}">${esc(d.label)} ${x.label}</span>`:''; }).join('');
+    return `<div class="team">
+      <div class="top"><h2 class="serif">${esc(t.name)}</h2>${badgeChip(t.badge)}</div>
+      <div class="headline">${esc(t.headline||'')}</div>
+      ${dd?`<div class="ddayrow">${dd}</div>`:''}
+      ${(t.projects&&t.projects.length)?`<div><div class="sec">PROJECTS</div><ul>${t.projects.map(p=>`<li>${esc(p.name)} — ${esc(p.status)}</li>`).join('')}</ul></div>`:''}
+      ${(t.queue&&t.queue.length)?`<div><div class="sec">QUEUE</div><ul>${t.queue.slice(0,4).map(q=>`<li>${esc(q)}</li>`).join('')}</ul></div>`:''}
+      ${(t.blockers&&t.blockers.length)?`<div class="blocker">${t.blockers.map(esc).join(' · ')}</div>`:''}
+      ${(t.prompts&&t.prompts.length)?`<div class="pbtns">${t.prompts.map((p,i)=>`<button class="btn ghost small" onclick="copyPromptBtn('${t.id}',${i})">${esc(p.label)}</button>`).join('')}</div>`:''}
+      <div class="order"><input id="ord_${t.id}" placeholder="${esc(t.name)}에 지시… (Enter)" onkeydown="if(event.key==='Enter')addRequest('${t.id}')"><button class="btn small" onclick="addRequest('${t.id}')">접수함 기록</button></div>
+      ${t.lastRun?`<div class="lastrun">최근: ${fmtAt(t.lastRun.at)} — ${esc(t.lastRun.summary||'')}</div>`:''}
+    </div>`;
+  }).join('')+`</div>`;
+  const reqs=(data.requests||[]).slice().reverse();
+  html+=`<div class="reqs"><h2>접수함 (일 시키기 기록)</h2>`+
+    (reqs.length?reqs.map(r=>`<div class="req">
+      <span class="rchip ${esc(r.status)}">${esc(r.status)}</span>
+      <span class="rteam">${esc(teamName(r.team))}</span>
+      <span class="rtext">${esc(r.text)}</span>
+      <span class="rat">${fmtAt(r.at)}</span>
+      ${r.status!=='done'?`<button class="btn ghost small" onclick="markDone('${esc(r.id)}')">완료</button>`:''}
+    </div>`).join(''):`<p style="font-size:13px;color:var(--ink3)">기록 없음 — 팀 카드의 입력창으로 지시를 남기면 비서가 다음 회차에 접수합니다. 화이트리스트 지시(배치 실행·야간 예약 등)는 자동 실행 예약까지 이어집니다.</p>`)+
+    `</div>
+    <div class="footnote">데이터: 총괄비서가 회차마다 갱신하는 gist 스냅숏 · 각 팀 원장이 항상 우선 · 브리핑 전문은 briefings 보관함 · 행사 실행은 <a href="https://jtthw64-create.github.io/church-ministry-dashboard/" target="_blank">교회 대시보드</a></div>`;
+  app.innerHTML=html;
+}
+function teamName(id){ const t=(data&&data.teams||[]).find(x=>x.id===id); return t?t.name:(id||''); }
+
+/* ---------- 시작 ---------- */
+function load(){
+  loadConfig();
+  if(config.token&&config.gistId){ refresh(true); startPolling(); }
+  else { setSync('local'); renderHint(); }
+}
+load();
+</script>
+</body>
+</html>
