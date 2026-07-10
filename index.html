@@ -114,6 +114,7 @@
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <a class="btn ghost" href="https://jtthw64-create.github.io/church-ministry-dashboard/" title="하위 보드: 행사 접수·단계 실행">⛪ 사역 오케스트레이션</a>
       <button class="btn ghost" onclick="openSettings()">동기화 설정</button>
+      <button class="btn ghost" onclick="addAction('secretary','company.refresh',null,false)" title="디스패처가 5분 내 팀 상태를 다시 수집해 이 화면을 갱신">상태 새로고침</button>
       <button class="btn" onclick="refresh(true)">지금 동기화</button>
     </div>
   </header>
@@ -149,7 +150,7 @@ const ACTIONS={
   dev:[{a:'dev.implement',l:'지금 구현',w:'now'},{a:'dev.implement',l:'새벽 5시 구현',w:'0500'},{a:'dev.verify',l:'run-verify'}],
   business:[{a:'biz.launch',l:'출시 체크 갱신'},{a:'biz.research',l:'리서치(주제 입력)',needsText:true}],
   ministry:[],
-  secretary:[]
+  secretary:[{a:'company.brief',l:'브리핑 생성'}]
 };
 const STATUS_LABEL={new:'접수',running:'실행 중',dispatched:'실행 예약',seen:'확인',user:'사용자 실행',done:'완료'};
 let config={}, data=null, pollTimer=null, pendingRender=false, busy=false;
@@ -268,7 +269,7 @@ function addAction(team,action,when,needsText){
   const req={id:'r-'+Date.now().toString(36),at:now,team,action,text,status:'new',updatedAt:now};
   if(when) req.when=when;
   pushMutation(d=>{ d.requests=d.requests||[]; d.requests.push(req); },
-    '실행 요청을 보냈습니다 — 디스패처가 곧 처리합니다 (머신 켜져 있으면 최대 15분)');
+    '실행 요청 접수 — 디스패처가 5분 내 시작합니다 (iMac 가동 기준)');
   if(needsText){ const inp=document.getElementById('ord_'+team); if(inp) inp.value=''; }
 }
 /* 자유 텍스트 지시 — 화이트리스트 아님 → 사용자 실행(디스패처가 user로 표시) */
@@ -280,7 +281,7 @@ function addRequest(team){
   pushMutation(d=>{
     d.requests=d.requests||[];
     d.requests.push({id:'r-'+Date.now().toString(36),at:now,team,action:'free',text,status:'new',updatedAt:now});
-  },'접수함에 기록했습니다 — 사용자 실행 항목으로 브리핑에 표시됩니다');
+  },'접수함에 기록했습니다 — "사용자 실행" 항목으로 표시됩니다 (자동 실행 안 함)');
   if(inp) inp.value='';
 }
 function markDone(id){
@@ -328,10 +329,11 @@ function renderStale(){
   const el=document.getElementById('staleBanner');
   const g=document.getElementById('genAt');
   if(!data||!data.generatedAt){ el.className='stale'; g.textContent=''; return; }
-  g.textContent='· 브리핑 '+fmtAt(data.generatedAt);
-  const hrs=(Date.now()-new Date(data.generatedAt).getTime())/36e5;
+  const sr=data.statusRefreshedAt||data.generatedAt;
+  g.textContent='· 상태 기준 '+fmtAt(sr);
+  const hrs=(Date.now()-new Date(sr).getTime())/36e5;
   if(hrs>STALE_HOURS){
-    el.textContent=`⚠ 브리핑 지연 — 마지막 갱신이 ${Math.floor(hrs)}시간 전입니다. iMac(예약 작업 머신)이 꺼져 있을 수 있습니다.`;
+    el.textContent=`⚠ 상태가 ${Math.floor(hrs)}시간 전 기준입니다 — iMac(디스패처 머신)이 꺼져 있을 수 있습니다. 켜져 있다면 [상태 새로고침]을 누르세요.`;
     el.className='stale show';
   } else el.className='stale';
 }
@@ -376,9 +378,14 @@ function render(){
       <span class="rat">${fmtAt(r.at)}</span>
       ${r.status!=='done'?`<button class="btn ghost small" onclick="markDone('${esc(r.id)}')">완료</button>`:''}
       ${r.result?`<span class="rres">→ ${esc(r.result)}</span>`:''}
-    </div>`).join(''):`<p style="font-size:13px;color:var(--ink3)">기록 없음 — [바로 실행] 버튼은 디스패처가 몇 분 내 처리하고, [사용자 실행 기록]과 자유 텍스트는 비서 브리핑에 사용자 실행 항목으로 표시됩니다. 즉시 실행하려면 [프롬프트 복사]를 열린 세션에 붙여넣으세요.</p>`)+
+    </div>`).join(''):`<p style="font-size:13px;color:var(--ink3)">기록 없음 — [바로 실행] 버튼은 디스패처가 <b>5분 내</b> 처리합니다. 자유 텍스트는 "사용자 실행" 항목으로 남고, 0지연이 필요하면 [프롬프트 복사]를 열린 세션에 붙여넣으세요.</p>`)+
+    `</div>`;
+  const wl=(data.worklog||[]).slice().reverse();
+  html+=`<div class="reqs"><h2>작업 로그 (최근 실행)</h2>`+
+    (wl.length?`<div style="font-size:12.5px;font-family:ui-monospace,monospace;color:var(--ink2);line-height:1.9;overflow-x:auto">${wl.map(l=>esc(l).replace(/^- /,'')).join('<br>')}</div>`
+    :`<p style="font-size:13px;color:var(--ink3)">아직 기록 없음 — 실행이 일어나면 여기에 1줄씩 쌓입니다 (전문: Dropbox worklog/)</p>`)+
     `</div>
-    <div class="footnote">데이터: 총괄비서가 회차마다 갱신하는 gist 스냅숏 · 각 팀 원장이 항상 우선 · 브리핑 전문은 briefings 보관함 · 행사 실행은 <a href="https://jtthw64-create.github.io/church-ministry-dashboard/" target="_blank">교회 대시보드</a></div>`;
+    <div class="footnote">이 페이지가 <b>커맨드센터</b>입니다 — 명령은 세션을 고르지 말고 여기서. 상태는 하루 1회 자동 + [상태 새로고침] · 브리핑은 [브리핑 생성] 버튼(비서 카드) · 각 팀 원장이 항상 우선 · 행사 실행은 <a href="https://jtthw64-create.github.io/church-ministry-dashboard/">사역 오케스트레이션</a></div>`;
   app.innerHTML=html;
 }
 function teamName(id){ const t=(data&&data.teams||[]).find(x=>x.id===id); return t?t.name:(id||''); }
