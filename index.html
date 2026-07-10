@@ -74,6 +74,10 @@
   .order input:focus{outline:none;border-color:var(--brand)}
   .reqs{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px 20px;margin-top:14px}
   .reqs h2{font-size:15px;font-weight:600;margin-bottom:8px}
+  .reqs h2.collapsible{cursor:pointer;user-select:none;display:flex;align-items:center;gap:7px}
+  .reqs h2.collapsible .caret{font-size:11px;color:var(--ink3);width:12px}
+  .reqs h2.collapsible .cnt{font-size:12px;font-weight:600;color:var(--ink3);background:var(--paper);border:1px solid var(--line);border-radius:999px;padding:0 8px;margin-left:2px}
+  .reqs h2.collapsible:hover{color:var(--brand)}
   .req{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px dashed var(--paper);font-size:13.5px;flex-wrap:wrap}
   .req .rchip{font-size:11px;font-weight:600;border-radius:5px;padding:1px 8px}
   .rchip.new{color:var(--clay);background:var(--clay-soft)}
@@ -163,6 +167,26 @@ const ACTIONS={
 };
 const STATUS_LABEL={new:'접수',running:'실행 중',dispatched:'실행 예약',queued:'정기 회차 대기',seen:'확인',user:'사용자 실행',done:'완료'};
 let config={}, data=null, pollTimer=null, pendingRender=false, busy=false, gistFiles=null;
+/* 접수함·작업로그 접기 상태 (localStorage 유지) */
+let sectionOpen={reqs:true, worklog:true};
+try{ const s=JSON.parse(localStorage.getItem('ai-company-sections')||'{}'); sectionOpen={...sectionOpen,...s}; }catch(e){}
+function toggleSection(k){ sectionOpen[k]=!sectionOpen[k]; try{localStorage.setItem('ai-company-sections',JSON.stringify(sectionOpen));}catch(e){} render(); }
+/* 완료 접수 24h / 작업로그 48h 표시 필터 */
+const REQ_DONE_TTL_MS=24*3600*1000, WORKLOG_TTL_MS=48*3600*1000;
+function reqVisible(r){
+  if(r && r.status==='done'){
+    const t=Date.parse(r.updatedAt||r.at||''); if(!isNaN(t) && (Date.now()-t)>REQ_DONE_TTL_MS) return false;
+  }
+  return true;
+}
+/* 작업로그 줄에서 시각 파싱: "- [MM-DD HH:MM] ..." → 연도 없으니 현재연도 가정, 미래면 작년 처리 */
+function worklogTs(line){
+  const m=/\[(\d{2})-(\d{2})\s+(\d{2}):(\d{2})\]/.exec(line||''); if(!m) return NaN;
+  const now=new Date(); let y=now.getFullYear();
+  let d=new Date(y, +m[1]-1, +m[2], +m[3], +m[4]);
+  if(d.getTime()-now.getTime() > 12*3600*1000) d=new Date(y-1, +m[1]-1, +m[2], +m[3], +m[4]); // 미래면 작년
+  return d.getTime();
+}
 
 /* ---------- 포커스 보호 ---------- */
 function isEditingFocus(){
@@ -392,26 +416,29 @@ function render(){
       ${t.lastRun?`<div class="lastrun">최근: ${fmtAt(t.lastRun.at)} — ${esc(t.lastRun.summary||'')}</div>`:''}
     </div>`;
   }).join('')+`</div>`;
-  const reqs=(Array.isArray(data.requests)?data.requests:[]).slice().reverse();
-  html+=`<div class="reqs"><h2>접수함 (일 시키기 · 실행 상태)</h2>`+
-    (reqs.length?reqs.map(r=>`<div class="req">
+  const reqs=(Array.isArray(data.requests)?data.requests:[]).filter(reqVisible).slice().reverse();
+  const reqsOn=sectionOpen.reqs;
+  html+=`<div class="reqs"><h2 class="collapsible" onclick="toggleSection('reqs')"><span class="caret">${reqsOn?'▾':'▸'}</span> 접수함 (일 시키기 · 실행 상태) <span class="cnt">${reqs.length}</span></h2>`+
+    (!reqsOn?'':(reqs.length?reqs.map(r=>`<div class="req">
       <span class="rchip ${esc(r.status)}">${esc(STATUS_LABEL[r.status]||r.status)}</span>
       <span class="rteam">${esc(teamName(r.team))}</span>
       <span class="rtext">${esc(r.action&&r.action!=='free'?(r.action+(r.when?' ('+r.when+')':'')+(r.text&&r.text!==r.action?' · '+r.text:'')):r.text)}</span>
       <span class="rat">${fmtAt(r.at)}</span>
       ${r.status!=='done'?`<button class="btn ghost small" onclick="markDone('${esc(r.id)}')">완료</button>`:''}
       ${r.result?`<span class="rres">→ ${esc(r.result)}</span>`:''}
-    </div>`).join(''):`<p style="font-size:13px;color:var(--ink3)">기록 없음 — [바로 실행] 버튼과 자유 지시 모두 <b>1분 내</b> 자동 처리됩니다(로컬 폴러). 배치·개발구현은 <b>정기 회차(04·18·23시)</b> 대기. 커밋·금전·삭제 등은 "사용자 실행"으로 보류+사유.</p>`)+
+    </div>`).join(''):`<p style="font-size:13px;color:var(--ink3)">기록 없음 — [바로 실행] 버튼과 자유 지시 모두 <b>1분 내</b> 자동 처리됩니다(로컬 폴러). 배치·개발구현은 <b>정기 회차(04·18·23시)</b> 대기. 커밋·금전·삭제 등은 "사용자 실행"으로 보류+사유.</p>`))+
     `</div>`;
   // worklog는 배열이 이상적이나, 디스패처가 문자열(파일 전체)로 넣을 수 있어 방어적으로 파싱
   let wlArr=[];
   if(Array.isArray(data.worklog)) wlArr=data.worklog;
   else if(typeof data.worklog==='string') wlArr=data.worklog.split('\n');
   wlArr=wlArr.filter(l=>typeof l==='string' && /^\s*-\s*\[/.test(l)); // 실제 로그 줄(- [..])만
+  wlArr=wlArr.filter(l=>{ const t=worklogTs(l); return isNaN(t) || (Date.now()-t)<=WORKLOG_TTL_MS; }); // 48h 이내만 표시
   const wl=wlArr.slice(-20).reverse();
-  html+=`<div class="reqs"><h2>작업 로그 (최근 실행)</h2>`+
-    (wl.length?`<div style="font-size:12.5px;font-family:ui-monospace,monospace;color:var(--ink2);line-height:1.9;overflow-x:auto">${wl.map(l=>esc(l).replace(/^- /,'')).join('<br>')}</div>`
-    :`<p style="font-size:13px;color:var(--ink3)">아직 기록 없음 — 실행이 일어나면 여기에 1줄씩 쌓입니다 (전문: Dropbox worklog/)</p>`)+
+  const wlOn=sectionOpen.worklog;
+  html+=`<div class="reqs"><h2 class="collapsible" onclick="toggleSection('worklog')"><span class="caret">${wlOn?'▾':'▸'}</span> 작업 로그 (최근 48시간) <span class="cnt">${wl.length}</span></h2>`+
+    (!wlOn?'':(wl.length?`<div style="font-size:12.5px;font-family:ui-monospace,monospace;color:var(--ink2);line-height:1.9;overflow-x:auto">${wl.map(l=>esc(l).replace(/^- /,'')).join('<br>')}</div>`
+    :`<p style="font-size:13px;color:var(--ink3)">최근 48시간 기록 없음 — 실행이 일어나면 여기에 1줄씩 쌓입니다 (전문: Dropbox worklog/)</p>`))+
     `</div>
     <div class="footnote">이 페이지가 <b>커맨드센터</b>입니다 — 팀 카드의 <b>[▶ 실행]</b> 버튼을 누르면 요청이 전달되고 <b>1분 내</b> 자동 처리됩니다(입력만으로는 실행되지 않음). 배치·개발구현은 정기 회차(04·18·23시)에 실행. 상태는 정기 회차에 갱신, [새로고침]은 화면만 다시 불러옵니다. 각 팀 원장이 항상 우선 · 팀별 상세는 상단 <b>팀 회의실</b> · 행사 실행은 <a href="https://jtthw64-create.github.io/church-ministry-dashboard/">사역팀 회의실</a></div>`;
   app.innerHTML=html;
