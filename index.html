@@ -153,7 +153,7 @@ const ACTIONS={
   ministry:[],
   secretary:[{a:'company.brief',l:'브리핑 생성'}]
 };
-const STATUS_LABEL={new:'접수',running:'실행 중',dispatched:'실행 예약',seen:'확인',user:'사용자 실행',done:'완료'};
+const STATUS_LABEL={new:'접수',running:'실행 중',dispatched:'실행 예약',queued:'정기 회차 대기',seen:'확인',user:'사용자 실행',done:'완료'};
 let config={}, data=null, pollTimer=null, pendingRender=false, busy=false, gistFiles=null;
 
 /* ---------- 포커스 보호 ---------- */
@@ -270,7 +270,7 @@ function addAction(team,action,when,needsText){
   const req={id:'r-'+Date.now().toString(36),at:now,team,action,text,status:'new',updatedAt:now};
   if(when) req.when=when;
   pushMutation(d=>{ d.requests=d.requests||[]; d.requests.push(req); },
-    '접수됨 — 자동(15분 주기) 또는 [▶ 디스패처 실행] 붙여넣기로 즉시 처리');
+    '접수됨 — 버튼은 1분 내 자동 처리 (배치·개발구현은 04/18/23 정기 회차)');
   if(needsText){ const inp=document.getElementById('ord_'+team); if(inp) inp.value=''; }
 }
 /* 자유 텍스트 지시 — 화이트리스트 아님 → 사용자 실행(디스패처가 user로 표시) */
@@ -282,7 +282,7 @@ function addRequest(team){
   pushMutation(d=>{
     d.requests=d.requests||[];
     d.requests.push({id:'r-'+Date.now().toString(36),at:now,team,action:'free',text,status:'new',updatedAt:now});
-  },'접수됨 — [▶ 디스패처 실행] 시 안전 판정 후 자동 실행되거나 "사용자 실행"으로 보류됩니다');
+  },'접수됨 — 1분 내 안전 판정 후 자동 실행되거나 "사용자 실행"으로 보류됩니다(사유 표시)');
   if(inp) inp.value='';
 }
 function markDone(id){
@@ -393,7 +393,7 @@ function render(){
       <span class="rat">${fmtAt(r.at)}</span>
       ${r.status!=='done'?`<button class="btn ghost small" onclick="markDone('${esc(r.id)}')">완료</button>`:''}
       ${r.result?`<span class="rres">→ ${esc(r.result)}</span>`:''}
-    </div>`).join(''):`<p style="font-size:13px;color:var(--ink3)">기록 없음 — [바로 실행] 버튼과 자유 지시 모두 디스패처가 <b>5분 내</b> 처리합니다(자유 지시는 안전 판정 통과 시 자동 실행, 커밋·금전·삭제 등은 "사용자 실행"으로 보류+사유). 0지연은 [프롬프트 복사].</p>`)+
+    </div>`).join(''):`<p style="font-size:13px;color:var(--ink3)">기록 없음 — [바로 실행] 버튼과 자유 지시 모두 <b>1분 내</b> 자동 처리됩니다(로컬 폴러). 배치·개발구현은 <b>정기 회차(04·18·23시)</b> 대기. 커밋·금전·삭제 등은 "사용자 실행"으로 보류+사유.</p>`)+
     `</div>`;
   // worklog는 배열이 이상적이나, 디스패처가 문자열(파일 전체)로 넣을 수 있어 방어적으로 파싱
   let wlArr=[];
