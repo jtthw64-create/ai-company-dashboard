@@ -114,9 +114,7 @@
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <a class="btn ghost" href="https://jtthw64-create.github.io/church-ministry-dashboard/" title="하위 보드: 행사 접수·단계 실행">⛪ 사역 오케스트레이션</a>
       <button class="btn ghost" onclick="openSettings()">동기화 설정</button>
-      <button class="btn ghost" onclick="addAction('secretary','company.refresh',null,false)" title="접수함에 새로고침 요청을 넣습니다 — [▶ 디스패처 실행]으로 처리">상태 새로고침</button>
-      <button class="btn ghost" onclick="copyText('dispatch-inbox 스킬로 접수함을 처리해줘.','복사됨 — 아무 Claude 세션에나 붙여넣으면 즉시 처리됩니다 (자동은 15분 주기)')" title="즉시 처리: 아무 세션에나 붙여넣기 (스킬 호출). 자동: 15분 주기 예약이 같은 스킬을 실행">▶ 디스패처 실행</button>
-      <button class="btn" onclick="refresh(true)">지금 동기화</button>
+      <button class="btn" onclick="refresh(true)" title="gist에서 최신 상태를 다시 불러옵니다 (실행 아님 — 자동실행을 깨우지 않음)">새로고침</button>
     </div>
   </header>
   <div class="syncbar">
@@ -315,7 +313,7 @@ function copyPromptBtn(teamId,idx){
 /* gist 파일(md)을 새창으로 열기 — 디스패처 새로고침이 report-{team}.md·briefing-latest.md를 동기화 */
 function openDoc(name,title){
   const f=gistFiles&&gistFiles[name];
-  if(!f){ toast('아직 보고 파일이 없습니다 — [상태 새로고침] 후 다시 시도하세요'); return; }
+  if(!f){ toast('아직 보고 파일이 없습니다 — 정기 회차(04·18·23시) 후 생성됩니다'); return; }
   const w=window.open('','_blank');
   if(!w){ toast('팝업이 차단되었습니다 — 브라우저 팝업 허용 필요'); return; }
   const write=txt=>{ w.document.write('<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+esc(title||name)+'</title><style>body{margin:0;padding:24px 14px;background:#F5F6F8;font-family:-apple-system,\'Apple SD Gothic Neo\',sans-serif}pre{max-width:760px;margin:0 auto;background:#fff;border:1px solid #DDE2E9;border-radius:10px;padding:22px;white-space:pre-wrap;word-break:break-word;font:13.5px/1.8 ui-monospace,\'Apple SD Gothic Neo\',monospace;color:#1E2430}</style></head><body><pre>'+esc(txt)+'</pre></body></html>'); w.document.close(); };
@@ -344,7 +342,7 @@ function renderStale(){
   g.textContent='· 상태 기준 '+fmtAt(sr);
   const hrs=(Date.now()-new Date(sr).getTime())/36e5;
   if(hrs>STALE_HOURS){
-    el.textContent=`⚠ 상태가 ${Math.floor(hrs)}시간 전 기준입니다 — iMac(디스패처 머신)이 꺼져 있을 수 있습니다. 켜져 있다면 [상태 새로고침]을 누르세요.`;
+    el.textContent=`⚠ 상태가 ${Math.floor(hrs)}시간 전 기준입니다 — iMac(디스패처 머신)이 꺼져 있을 수 있습니다. 상태는 정기 회차(04·18·23시)에 갱신됩니다.`;
     el.className='stale show';
   } else el.className='stale';
 }
@@ -380,7 +378,7 @@ function render(){
       ${(ACTIONS[t.id]&&ACTIONS[t.id].length)?`<div><div class="sec">바로 실행 (디스패처)</div><div class="actbtns">${ACTIONS[t.id].map(x=>`<button class="act" onclick="addAction('${t.id}','${x.a}',${x.w?`'${x.w}'`:'null'},${x.needsText?'true':'false'})">${esc(x.l)}</button>`).join('')}</div></div>`:''}
       ${docs.length?`<div class="pbtns">${docs.join('')}</div>`:''}
       ${(t.prompts&&t.prompts.length)?`<div><div class="sec">프롬프트 복사 (인세션 즉시)</div><div class="pbtns">${t.prompts.map((p,i)=>`<button class="btn ghost small" onclick="copyPromptBtn('${t.id}',${i})">${esc(p.label)}</button>`).join('')}</div></div>`:''}
-      <div class="order"><input id="ord_${t.id}" placeholder="${esc(t.name)}에 자유 지시… (Enter=접수)" onkeydown="if(event.key==='Enter')addRequest('${t.id}')"><button class="btn ghost small" onclick="addRequest('${t.id}')">지시 접수</button></div>
+      <div class="order"><input id="ord_${t.id}" placeholder="${esc(t.name)}에 자유 지시 입력…" onkeydown="if(event.key==='Enter')addRequest('${t.id}')"><button class="btn small" onclick="addRequest('${t.id}')">▶ 실행</button></div>
       ${t.lastRun?`<div class="lastrun">최근: ${fmtAt(t.lastRun.at)} — ${esc(t.lastRun.summary||'')}</div>`:''}
     </div>`;
   }).join('')+`</div>`;
@@ -405,7 +403,7 @@ function render(){
     (wl.length?`<div style="font-size:12.5px;font-family:ui-monospace,monospace;color:var(--ink2);line-height:1.9;overflow-x:auto">${wl.map(l=>esc(l).replace(/^- /,'')).join('<br>')}</div>`
     :`<p style="font-size:13px;color:var(--ink3)">아직 기록 없음 — 실행이 일어나면 여기에 1줄씩 쌓입니다 (전문: Dropbox worklog/)</p>`)+
     `</div>
-    <div class="footnote">이 페이지가 <b>커맨드센터</b>입니다 — 명령은 세션을 고르지 말고 여기서. 상태는 하루 1회 자동 + [상태 새로고침] · 브리핑은 [브리핑 생성] 버튼(비서 카드) · 각 팀 원장이 항상 우선 · 행사 실행은 <a href="https://jtthw64-create.github.io/church-ministry-dashboard/">사역 오케스트레이션</a></div>`;
+    <div class="footnote">이 페이지가 <b>커맨드센터</b>입니다 — 팀 카드의 <b>[▶ 실행]</b> 버튼을 누르면 요청이 전달되고 <b>1분 내</b> 자동 처리됩니다(입력만으로는 실행되지 않음). 배치·개발구현은 정기 회차(04·18·23시)에 실행. 상태는 정기 회차에 갱신, [새로고침]은 화면만 다시 불러옵니다. 각 팀 원장이 항상 우선 · 행사 실행은 <a href="https://jtthw64-create.github.io/church-ministry-dashboard/">사역 오케스트레이션</a></div>`;
   app.innerHTML=html;
 }
 function teamName(id){ const t=(data&&data.teams||[]).find(x=>x.id===id); return t?t.name:(id||''); }
