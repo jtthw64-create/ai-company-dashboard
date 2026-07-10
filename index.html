@@ -153,7 +153,7 @@ const ACTIONS={
   secretary:[{a:'company.brief',l:'브리핑 생성'}]
 };
 const STATUS_LABEL={new:'접수',running:'실행 중',dispatched:'실행 예약',seen:'확인',user:'사용자 실행',done:'완료'};
-let config={}, data=null, pollTimer=null, pendingRender=false, busy=false;
+let config={}, data=null, pollTimer=null, pendingRender=false, busy=false, gistFiles=null;
 
 /* ---------- 포커스 보호 ---------- */
 function isEditingFocus(){
@@ -200,7 +200,7 @@ function setSync(mode,msg){
 async function remoteGet(){
   const r=await fetch('https://api.github.com/gists/'+config.gistId.trim(),{headers:ghHeaders()});
   if(!r.ok) throw new Error('HTTP '+r.status+(r.status===404?' — Gist ID가 틀렸거나 토큰에 gist 권한이 없습니다':''));
-  const j=await r.json(); const f=j.files&&j.files[DATA_FILE];
+  const j=await r.json(); gistFiles=j.files||null; const f=j.files&&j.files[DATA_FILE];
   if(!f){
     if(j.files&&j.files['church-orch-data.json']) throw new Error('교회 gist ID가 입력되어 있습니다 — company gist ID로 바꿔주세요 (AI Company/gist-config.md 참조)');
     throw new Error('이 Gist에 '+DATA_FILE+'이 없습니다 (있는 파일: '+(Object.keys(j.files||{}).join(', ')||'없음')+') — Gist ID를 확인하세요');
@@ -311,6 +311,16 @@ function copyPromptBtn(teamId,idx){
   if(!p) return;
   copyText(p.prompt,'프롬프트를 복사했습니다 — Claude에 붙여넣으세요');
 }
+/* gist 파일(md)을 새창으로 열기 — 디스패처 새로고침이 report-{team}.md·briefing-latest.md를 동기화 */
+function openDoc(name,title){
+  const f=gistFiles&&gistFiles[name];
+  if(!f){ toast('아직 보고 파일이 없습니다 — [상태 새로고침] 후 다시 시도하세요'); return; }
+  const w=window.open('','_blank');
+  if(!w){ toast('팝업이 차단되었습니다 — 브라우저 팝업 허용 필요'); return; }
+  const write=txt=>{ w.document.write('<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+esc(title||name)+'</title><style>body{margin:0;padding:24px 14px;background:#F5F6F8;font-family:-apple-system,\'Apple SD Gothic Neo\',sans-serif}pre{max-width:760px;margin:0 auto;background:#fff;border:1px solid #DDE2E9;border-radius:10px;padding:22px;white-space:pre-wrap;word-break:break-word;font:13.5px/1.8 ui-monospace,\'Apple SD Gothic Neo\',monospace;color:#1E2430}</style></head><body><pre>'+esc(txt)+'</pre></body></html>'); w.document.close(); };
+  if(f.truncated){ fetch(f.raw_url).then(r=>r.text()).then(write).catch(()=>{ try{w.close();}catch(e){} toast('본문 로드 실패'); }); }
+  else write(f.content||'');
+}
 function copyText(txt,msg){
   const done=()=>toast(msg);
   if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(txt).then(done).catch(()=>fallbackCopy(txt,done)); }
@@ -345,7 +355,7 @@ function render(){
   if(data.briefing){
     html+=`<div class="brief"><h2>최근 브리핑 ${data.briefing.type?('('+esc(data.briefing.type)+')'):''}</h2>
       <div class="body">${esc(data.briefing.summary)}</div>
-      <div class="meta">${fmtAt(data.briefing.at)}${data.briefing.file?' · Dropbox: AI Company/'+esc(data.briefing.file):''}</div></div>`;
+      <div class="meta">${fmtAt(data.briefing.at)}${(gistFiles&&gistFiles['briefing-latest.md'])?' · <button class="btn ghost small" style="padding:1px 10px;font-size:11.5px" onclick="openDoc(\'briefing-latest.md\',\'최근 브리핑 전문\')">📄 전문 열기</button>':''}</div></div>`;
   }
   if(data.weekly){
     html+=`<div class="brief"><h2>주간 보고</h2><div class="body">${esc(data.weekly.summary||'')}</div>
@@ -356,6 +366,9 @@ function render(){
   }
   html+=`<div class="grid">`+(data.teams||[]).map(t=>{
     const dd=(t.dday||[]).map(d=>{ const x=ddayOf(d.date); return x?`<span class="pdday ${x.cls}" title="${esc(d.date)}">${esc(d.label)} ${x.label}</span>`:''; }).join('');
+    const docs=[];
+    if(gistFiles&&gistFiles['report-'+t.id+'.md']) docs.push(`<button class="btn ghost small" onclick="openDoc('report-${t.id}.md','${esc(t.name)} 최근 보고')">📄 최근 보고</button>`);
+    if(t.id==='secretary'&&gistFiles&&gistFiles['briefing-latest.md']) docs.push(`<button class="btn ghost small" onclick="openDoc('briefing-latest.md','최근 브리핑 전문')">📄 브리핑 전문</button>`);
     return `<div class="team">
       <div class="top"><h2 class="serif">${esc(t.name)}</h2>${badgeChip(t.badge)}</div>
       <div class="headline">${esc(t.headline||'')}</div>
@@ -364,6 +377,7 @@ function render(){
       ${(t.queue&&t.queue.length)?`<div><div class="sec">QUEUE</div><ul>${t.queue.slice(0,4).map(q=>`<li>${esc(q)}</li>`).join('')}</ul></div>`:''}
       ${(t.blockers&&t.blockers.length)?`<div class="blocker">${t.blockers.map(esc).join(' · ')}</div>`:''}
       ${(ACTIONS[t.id]&&ACTIONS[t.id].length)?`<div><div class="sec">바로 실행 (디스패처)</div><div class="actbtns">${ACTIONS[t.id].map(x=>`<button class="act" onclick="addAction('${t.id}','${x.a}',${x.w?`'${x.w}'`:'null'},${x.needsText?'true':'false'})">${esc(x.l)}</button>`).join('')}</div></div>`:''}
+      ${docs.length?`<div class="pbtns">${docs.join('')}</div>`:''}
       ${(t.prompts&&t.prompts.length)?`<div><div class="sec">프롬프트 복사 (인세션 즉시)</div><div class="pbtns">${t.prompts.map((p,i)=>`<button class="btn ghost small" onclick="copyPromptBtn('${t.id}',${i})">${esc(p.label)}</button>`).join('')}</div></div>`:''}
       <div class="order"><input id="ord_${t.id}" placeholder="${esc(t.name)}에 자유 지시… (Enter=접수)" onkeydown="if(event.key==='Enter')addRequest('${t.id}')"><button class="btn ghost small" onclick="addRequest('${t.id}')">지시 접수</button></div>
       ${t.lastRun?`<div class="lastrun">최근: ${fmtAt(t.lastRun.at)} — ${esc(t.lastRun.summary||'')}</div>`:''}
