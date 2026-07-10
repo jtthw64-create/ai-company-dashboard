@@ -72,9 +72,17 @@
   .req{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px dashed var(--paper);font-size:13.5px;flex-wrap:wrap}
   .req .rchip{font-size:11px;font-weight:600;border-radius:5px;padding:1px 8px}
   .rchip.new{color:var(--clay);background:var(--clay-soft)}
+  .rchip.running{color:var(--amber);background:var(--amber-soft)}
+  .rchip.dispatched{color:var(--brand);background:var(--brand-soft)}
   .rchip.seen{color:var(--amber);background:var(--amber-soft)}
-  .rchip.dispatched{color:var(--green);background:var(--green-soft)}
-  .rchip.done{color:var(--ink3);background:#EEF0F3}
+  .rchip.user{color:var(--clay);background:var(--clay-soft)}
+  .rchip.done{color:var(--green);background:var(--green-soft)}
+  .req .rres{flex-basis:100%;font-size:12px;color:var(--ink3);padding-left:2px}
+  .actbtns{display:flex;gap:6px;flex-wrap:wrap;margin-top:2px}
+  button.act{font:inherit;font-size:12px;font-weight:600;color:var(--brand);background:var(--brand-soft);border:1px solid var(--brand-line);border-radius:999px;padding:4px 11px;cursor:pointer}
+  button.act:hover{background:var(--brand);color:#fff;border-color:var(--brand)}
+  button.act.warn{color:var(--clay);background:var(--clay-soft);border-color:var(--clay-soft)}
+  button.act.warn:hover{background:var(--clay);color:#fff}
   .req .rteam{font-weight:600;color:var(--brand);white-space:nowrap}
   .req .rtext{flex:1;min-width:160px}
   .req .rat{font-size:11px;color:var(--ink3);white-space:nowrap}
@@ -133,6 +141,15 @@ const CONFIG_KEY='ai-company-config-v1';
 const DATA_FILE='company-status.json';
 const POLL_MS=60000;
 const STALE_HOURS=16;
+/* 팀별 즉시 실행(디스패처) 액션 — 화이트리스트. free 텍스트는 사용자 실행으로 감. */
+const ACTIONS={
+  research:[{a:'research.batch',l:'배치 실행'},{a:'research.reports',l:'보고서 배치'},{a:'research.index',l:'인덱스 점검'},{a:'research.wiki',l:'위키 소급'}],
+  dev:[{a:'dev.implement',l:'지금 구현',w:'now'},{a:'dev.implement',l:'새벽 5시 구현',w:'0500'},{a:'dev.verify',l:'run-verify'}],
+  business:[{a:'biz.launch',l:'출시 체크 갱신'},{a:'biz.research',l:'리서치(주제 입력)',needsText:true}],
+  ministry:[],
+  secretary:[]
+};
+const STATUS_LABEL={new:'접수',running:'실행 중',dispatched:'실행 예약',seen:'확인',user:'사용자 실행',done:'완료'};
 let config={}, data=null, pollTimer=null, pendingRender=false, busy=false;
 
 /* ---------- 포커스 보호 ---------- */
@@ -218,6 +235,18 @@ document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState=
 window.addEventListener('focus', ()=>refresh());
 
 /* ---------- 접수함 ---------- */
+/* 프리셋 액션(화이트리스트) — 디스패처가 몇 분 내 실행 */
+function addAction(team,action,when,needsText){
+  let text=action;
+  if(needsText){ const inp=document.getElementById('ord_'+team); text=(inp&&inp.value||'').trim(); if(!text){ toast('주제·내용을 입력해 주세요'); return; } }
+  const now=new Date().toISOString();
+  const req={id:'r-'+Date.now().toString(36),at:now,team,action,text,status:'new',updatedAt:now};
+  if(when) req.when=when;
+  pushMutation(d=>{ d.requests=d.requests||[]; d.requests.push(req); },
+    '실행 요청을 보냈습니다 — 디스패처가 곧 처리합니다 (머신 켜져 있으면 최대 15분)');
+  if(needsText){ const inp=document.getElementById('ord_'+team); if(inp) inp.value=''; }
+}
+/* 자유 텍스트 지시 — 화이트리스트 아님 → 사용자 실행(디스패처가 user로 표시) */
 function addRequest(team){
   const inp=document.getElementById('ord_'+team);
   const text=(inp&&inp.value||'').trim();
@@ -225,8 +254,8 @@ function addRequest(team){
   const now=new Date().toISOString();
   pushMutation(d=>{
     d.requests=d.requests||[];
-    d.requests.push({id:'r-'+Date.now().toString(36),at:now,team,text,status:'new',updatedAt:now});
-  },'접수함에 기록했습니다 — 다음 비서 회차(08시/자정)에 접수됩니다');
+    d.requests.push({id:'r-'+Date.now().toString(36),at:now,team,action:'free',text,status:'new',updatedAt:now});
+  },'접수함에 기록했습니다 — 사용자 실행 항목으로 브리핑에 표시됩니다');
   if(inp) inp.value='';
 }
 function markDone(id){
@@ -307,20 +336,22 @@ function render(){
       ${(t.projects&&t.projects.length)?`<div><div class="sec">PROJECTS</div><ul>${t.projects.map(p=>`<li>${esc(p.name)} — ${esc(p.status)}</li>`).join('')}</ul></div>`:''}
       ${(t.queue&&t.queue.length)?`<div><div class="sec">QUEUE</div><ul>${t.queue.slice(0,4).map(q=>`<li>${esc(q)}</li>`).join('')}</ul></div>`:''}
       ${(t.blockers&&t.blockers.length)?`<div class="blocker">${t.blockers.map(esc).join(' · ')}</div>`:''}
-      ${(t.prompts&&t.prompts.length)?`<div class="pbtns">${t.prompts.map((p,i)=>`<button class="btn ghost small" onclick="copyPromptBtn('${t.id}',${i})">${esc(p.label)}</button>`).join('')}</div>`:''}
-      <div class="order"><input id="ord_${t.id}" placeholder="${esc(t.name)}에 지시… (Enter)" onkeydown="if(event.key==='Enter')addRequest('${t.id}')"><button class="btn small" onclick="addRequest('${t.id}')">접수함 기록</button></div>
+      ${(ACTIONS[t.id]&&ACTIONS[t.id].length)?`<div><div class="sec">바로 실행 (디스패처)</div><div class="actbtns">${ACTIONS[t.id].map(x=>`<button class="act" onclick="addAction('${t.id}','${x.a}',${x.w?`'${x.w}'`:'null'},${x.needsText?'true':'false'})">${esc(x.l)}</button>`).join('')}</div></div>`:''}
+      ${(t.prompts&&t.prompts.length)?`<div><div class="sec">프롬프트 복사 (인세션 즉시)</div><div class="pbtns">${t.prompts.map((p,i)=>`<button class="btn ghost small" onclick="copyPromptBtn('${t.id}',${i})">${esc(p.label)}</button>`).join('')}</div></div>`:''}
+      <div class="order"><input id="ord_${t.id}" placeholder="${esc(t.name)}에 지시/주제… (Enter=사용자 실행)" onkeydown="if(event.key==='Enter')addRequest('${t.id}')"><button class="btn ghost small" onclick="addRequest('${t.id}')">사용자 실행 기록</button></div>
       ${t.lastRun?`<div class="lastrun">최근: ${fmtAt(t.lastRun.at)} — ${esc(t.lastRun.summary||'')}</div>`:''}
     </div>`;
   }).join('')+`</div>`;
   const reqs=(data.requests||[]).slice().reverse();
-  html+=`<div class="reqs"><h2>접수함 (일 시키기 기록)</h2>`+
+  html+=`<div class="reqs"><h2>접수함 (일 시키기 · 실행 상태)</h2>`+
     (reqs.length?reqs.map(r=>`<div class="req">
-      <span class="rchip ${esc(r.status)}">${esc(r.status)}</span>
+      <span class="rchip ${esc(r.status)}">${esc(STATUS_LABEL[r.status]||r.status)}</span>
       <span class="rteam">${esc(teamName(r.team))}</span>
-      <span class="rtext">${esc(r.text)}</span>
+      <span class="rtext">${esc(r.action&&r.action!=='free'?(r.action+(r.when?' ('+r.when+')':'')+(r.text&&r.text!==r.action?' · '+r.text:'')):r.text)}</span>
       <span class="rat">${fmtAt(r.at)}</span>
       ${r.status!=='done'?`<button class="btn ghost small" onclick="markDone('${esc(r.id)}')">완료</button>`:''}
-    </div>`).join(''):`<p style="font-size:13px;color:var(--ink3)">기록 없음 — 팀 카드의 입력창으로 지시를 남기면 비서가 다음 회차에 접수합니다. 화이트리스트 지시(배치 실행·야간 예약 등)는 자동 실행 예약까지 이어집니다.</p>`)+
+      ${r.result?`<span class="rres">→ ${esc(r.result)}</span>`:''}
+    </div>`).join(''):`<p style="font-size:13px;color:var(--ink3)">기록 없음 — [바로 실행] 버튼은 디스패처가 몇 분 내 처리하고, [사용자 실행 기록]과 자유 텍스트는 비서 브리핑에 사용자 실행 항목으로 표시됩니다. 즉시 실행하려면 [프롬프트 복사]를 열린 세션에 붙여넣으세요.</p>`)+
     `</div>
     <div class="footnote">데이터: 총괄비서가 회차마다 갱신하는 gist 스냅숏 · 각 팀 원장이 항상 우선 · 브리핑 전문은 briefings 보관함 · 행사 실행은 <a href="https://jtthw64-create.github.io/church-ministry-dashboard/" target="_blank">교회 대시보드</a></div>`;
   app.innerHTML=html;
