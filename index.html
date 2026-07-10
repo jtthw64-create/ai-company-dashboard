@@ -36,6 +36,10 @@
   .syncbar button:hover{color:var(--ink)}
   .stale{background:var(--amber-soft);border:1px solid var(--amber);color:#6B4A15;border-radius:var(--r);padding:10px 16px;font-size:13.5px;margin-bottom:14px;display:none}
   .stale.show{display:block}
+  .rooms-nav{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:16px;padding:10px 14px;background:var(--card);border:1px solid var(--line);border-radius:var(--r)}
+  .rooms-label{font-size:11px;font-weight:700;letter-spacing:.1em;color:var(--ink3);text-transform:uppercase;margin-right:2px}
+  .room-link{font-size:13px;font-weight:600;color:var(--ink);text-decoration:none;background:var(--paper);border:1px solid var(--line);border-radius:999px;padding:5px 13px;transition:border-color .12s,color .12s}
+  .room-link:hover{border-color:var(--brand);color:var(--brand)}
   .brief{background:var(--card);border:1px solid var(--brand-line);border-left:4px solid var(--brand);border-radius:var(--r);padding:16px 20px;margin-bottom:14px}
   .brief h2{font-size:15px;font-weight:600;color:var(--brand);margin-bottom:4px}
   .brief .body{font-size:14.5px;white-space:pre-wrap}
@@ -112,7 +116,6 @@
       <h1 class="serif">AI 컴퍼니 상황판</h1>
     </div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-      <a class="btn ghost" href="https://jtthw64-create.github.io/church-ministry-dashboard/" title="하위 보드: 행사 접수·단계 실행">⛪ 사역 오케스트레이션</a>
       <button class="btn ghost" onclick="openSettings()">동기화 설정</button>
       <button class="btn" onclick="refresh(true)" title="gist에서 최신 상태를 다시 불러옵니다 (실행 아님 — 자동실행을 깨우지 않음)">새로고침</button>
     </div>
@@ -122,6 +125,13 @@
     <span id="genAt"></span>
   </div>
   <div class="stale" id="staleBanner"></div>
+  <div class="rooms-nav">
+    <span class="rooms-label">팀 회의실</span>
+    <a class="room-link" href="https://jtthw64-create.github.io/ai-company-dashboard/team-room.html?team=dev">💻 개발팀 회의실</a>
+    <a class="room-link" href="https://jtthw64-create.github.io/ai-company-dashboard/team-room.html?team=research">📚 연구팀 회의실</a>
+    <a class="room-link" href="https://jtthw64-create.github.io/ai-company-dashboard/team-room.html?team=business">💼 사업팀 회의실</a>
+    <a class="room-link" href="https://jtthw64-create.github.io/church-ministry-dashboard/">⛪ 사역팀 회의실</a>
+  </div>
   <div id="app"><div class="empty"><p>불러오는 중…</p></div></div>
   <div class="toast" id="toast"></div>
 </div>
@@ -403,7 +413,7 @@ function render(){
     (wl.length?`<div style="font-size:12.5px;font-family:ui-monospace,monospace;color:var(--ink2);line-height:1.9;overflow-x:auto">${wl.map(l=>esc(l).replace(/^- /,'')).join('<br>')}</div>`
     :`<p style="font-size:13px;color:var(--ink3)">아직 기록 없음 — 실행이 일어나면 여기에 1줄씩 쌓입니다 (전문: Dropbox worklog/)</p>`)+
     `</div>
-    <div class="footnote">이 페이지가 <b>커맨드센터</b>입니다 — 팀 카드의 <b>[▶ 실행]</b> 버튼을 누르면 요청이 전달되고 <b>1분 내</b> 자동 처리됩니다(입력만으로는 실행되지 않음). 배치·개발구현은 정기 회차(04·18·23시)에 실행. 상태는 정기 회차에 갱신, [새로고침]은 화면만 다시 불러옵니다. 각 팀 원장이 항상 우선 · 행사 실행은 <a href="https://jtthw64-create.github.io/church-ministry-dashboard/">사역 오케스트레이션</a></div>`;
+    <div class="footnote">이 페이지가 <b>커맨드센터</b>입니다 — 팀 카드의 <b>[▶ 실행]</b> 버튼을 누르면 요청이 전달되고 <b>1분 내</b> 자동 처리됩니다(입력만으로는 실행되지 않음). 배치·개발구현은 정기 회차(04·18·23시)에 실행. 상태는 정기 회차에 갱신, [새로고침]은 화면만 다시 불러옵니다. 각 팀 원장이 항상 우선 · 팀별 상세는 상단 <b>팀 회의실</b> · 행사 실행은 <a href="https://jtthw64-create.github.io/church-ministry-dashboard/">사역팀 회의실</a></div>`;
   app.innerHTML=html;
 }
 function teamName(id){ const t=(data&&data.teams||[]).find(x=>x.id===id); return t?t.name:(id||''); }
