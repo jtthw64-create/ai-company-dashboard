@@ -383,7 +383,7 @@ function render(){
       ${t.lastRun?`<div class="lastrun">최근: ${fmtAt(t.lastRun.at)} — ${esc(t.lastRun.summary||'')}</div>`:''}
     </div>`;
   }).join('')+`</div>`;
-  const reqs=(data.requests||[]).slice().reverse();
+  const reqs=(Array.isArray(data.requests)?data.requests:[]).slice().reverse();
   html+=`<div class="reqs"><h2>접수함 (일 시키기 · 실행 상태)</h2>`+
     (reqs.length?reqs.map(r=>`<div class="req">
       <span class="rchip ${esc(r.status)}">${esc(STATUS_LABEL[r.status]||r.status)}</span>
@@ -394,7 +394,12 @@ function render(){
       ${r.result?`<span class="rres">→ ${esc(r.result)}</span>`:''}
     </div>`).join(''):`<p style="font-size:13px;color:var(--ink3)">기록 없음 — [바로 실행] 버튼과 자유 지시 모두 디스패처가 <b>5분 내</b> 처리합니다(자유 지시는 안전 판정 통과 시 자동 실행, 커밋·금전·삭제 등은 "사용자 실행"으로 보류+사유). 0지연은 [프롬프트 복사].</p>`)+
     `</div>`;
-  const wl=(data.worklog||[]).slice().reverse();
+  // worklog는 배열이 이상적이나, 디스패처가 문자열(파일 전체)로 넣을 수 있어 방어적으로 파싱
+  let wlArr=[];
+  if(Array.isArray(data.worklog)) wlArr=data.worklog;
+  else if(typeof data.worklog==='string') wlArr=data.worklog.split('\n');
+  wlArr=wlArr.filter(l=>typeof l==='string' && /^\s*-\s*\[/.test(l)); // 실제 로그 줄(- [..])만
+  const wl=wlArr.slice(-20).reverse();
   html+=`<div class="reqs"><h2>작업 로그 (최근 실행)</h2>`+
     (wl.length?`<div style="font-size:12.5px;font-family:ui-monospace,monospace;color:var(--ink2);line-height:1.9;overflow-x:auto">${wl.map(l=>esc(l).replace(/^- /,'')).join('<br>')}</div>`
     :`<p style="font-size:13px;color:var(--ink3)">아직 기록 없음 — 실행이 일어나면 여기에 1줄씩 쌓입니다 (전문: Dropbox worklog/)</p>`)+
