@@ -28,6 +28,7 @@
   .btn.ghost{background:transparent;color:var(--ink);border-color:var(--line)}
   .btn.ghost:hover{border-color:var(--ink);background:#fff;color:var(--ink)}
   .btn.small{padding:5px 12px;font-size:12.5px}
+  a.btn{text-decoration:none;display:inline-flex;align-items:center}
   .syncbar{display:flex;align-items:center;gap:8px;justify-content:flex-end;font-size:12.5px;color:var(--ink2);margin-bottom:10px;flex-wrap:wrap}
   .dot{width:9px;height:9px;border-radius:50%;background:var(--ink3);display:inline-block}
   .dot.ok{background:var(--green)} .dot.syncing{background:var(--amber)} .dot.err{background:var(--clay)}
@@ -111,6 +112,7 @@
       <h1 class="serif">AI 컴퍼니 상황판</h1>
     </div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <a class="btn ghost" href="https://jtthw64-create.github.io/church-ministry-dashboard/" title="하위 보드: 행사 접수·단계 실행">⛪ 사역 오케스트레이션</a>
       <button class="btn ghost" onclick="openSettings()">동기화 설정</button>
       <button class="btn" onclick="refresh(true)">지금 동기화</button>
     </div>
@@ -127,7 +129,7 @@
 <dialog id="setDlg">
   <h3>Gist 동기화 설정</h3>
   <div class="f"><label>GitHub 토큰 (gist 권한만)</label><input id="sToken" type="password" placeholder="ghp_... 또는 github_pat_...">
-    <div class="hint">이 브라우저의 localStorage에만 저장됩니다. 저장소·Gist에 절대 기록하지 마세요.</div></div>
+    <div class="hint" id="tokHint">이 브라우저의 localStorage에만 저장됩니다. 저장소·Gist에 절대 기록하지 마세요.</div></div>
   <div class="f"><label>Gist ID</label><input id="sGist" placeholder="company gist ID">
     <div class="hint">Dropbox의 AI Company/gist-config.md 참조.</div></div>
   <div class="dact">
@@ -158,15 +160,21 @@ function isEditingFocus(){
   return !!a && ['INPUT','TEXTAREA','SELECT'].includes(a.tagName) && a.closest('#app');
 }
 document.addEventListener('focusout', ()=>{
-  setTimeout(()=>{ if(pendingRender && !isEditingFocus()){ pendingRender=false; render(); } }, 60);
+  setTimeout(()=>{ if(pendingRender && !isEditingFocus()){ pendingRender=false; safeRender(); } }, 60);
 }, true);
 
 /* ---------- 설정 ---------- */
 function loadConfig(){ try{ config=JSON.parse(localStorage.getItem(CONFIG_KEY))||{}; }catch(e){ config={}; } }
 function persistConfig(){ try{ localStorage.setItem(CONFIG_KEY,JSON.stringify(config)); }catch(e){} }
 function openSettings(){ loadConfig();
-  document.getElementById('sToken').value=config.token||'';
+  let tok=config.token||'', reused=false;
+  if(!tok){ /* 같은 오리진의 교회 대시보드 토큰 재사용 (gist 권한 동일) */
+    try{ const cc=JSON.parse(localStorage.getItem('church-orch-config-v1'))||{};
+      if(cc.token){ tok=cc.token; reused=true; } }catch(e){}
+  }
+  document.getElementById('sToken').value=tok;
   document.getElementById('sGist').value=config.gistId||'';
+  document.getElementById('tokHint').textContent=reused?'교회 대시보드의 토큰을 자동으로 가져왔습니다 — Gist ID만 company 것으로 입력하세요.':'이 브라우저의 localStorage에만 저장됩니다. 저장소·Gist에 절대 기록하지 마세요.';
   document.getElementById('setDlg').showModal(); }
 async function saveSettings(){
   config.token=document.getElementById('sToken').value.trim();
@@ -189,13 +197,26 @@ function setSync(mode,msg){
   t.textContent = mode==='ok'?('동기화됨'+timeTxt):mode==='syncing'?'동기화 중…':mode==='err'?('오류'+(msg?' — '+msg:'')):'로컬 모드';
 }
 async function remoteGet(){
-  const r=await fetch('https://api.github.com/gists/'+config.gistId,{headers:ghHeaders()});
-  if(!r.ok) throw new Error('HTTP '+r.status);
+  const r=await fetch('https://api.github.com/gists/'+config.gistId.trim(),{headers:ghHeaders()});
+  if(!r.ok) throw new Error('HTTP '+r.status+(r.status===404?' — Gist ID가 틀렸거나 토큰에 gist 권한이 없습니다':''));
   const j=await r.json(); const f=j.files&&j.files[DATA_FILE];
-  if(!f) return null;
+  if(!f){
+    if(j.files&&j.files['church-orch-data.json']) throw new Error('교회 gist ID가 입력되어 있습니다 — company gist ID로 바꿔주세요 (AI Company/gist-config.md 참조)');
+    throw new Error('이 Gist에 '+DATA_FILE+'이 없습니다 (있는 파일: '+(Object.keys(j.files||{}).join(', ')||'없음')+') — Gist ID를 확인하세요');
+  }
   let content=f.content;
   if(f.truncated){ const rr=await fetch(f.raw_url); content=await rr.text(); }
   return JSON.parse(content);
+}
+function safeRender(){
+  try{ render(); }
+  catch(e){ renderError('화면 렌더 오류: '+e.message); }
+}
+function renderError(msg){
+  document.getElementById('app').innerHTML=`<div class="empty">
+    <h2 class="serif" style="font-size:18px">데이터를 불러오지 못했습니다</h2>
+    <p>${esc(msg)}</p>
+    <p style="margin-top:12px"><button class="btn ghost small" onclick="openSettings()">동기화 설정 열기</button></p></div>`;
 }
 async function remotePut(payload){
   const r=await fetch('https://api.github.com/gists/'+config.gistId,{method:'PATCH',
@@ -209,9 +230,14 @@ async function refresh(manual){
   setSync('syncing');
   try{
     const remote=await remoteGet();
-    if(remote){ data=remote; if(isEditingFocus()) pendingRender=true; else render(); }
+    data=remote;
+    if(isEditingFocus()) pendingRender=true; else safeRender();
     setSync('ok');
-  }catch(e){ setSync('err',e.message); if(manual) toast('동기화 실패: '+e.message); }
+  }catch(e){
+    setSync('err',e.message);
+    if(!data) renderError(e.message); /* 데이터가 한 번도 안 왔으면 "불러오는 중"에 멈추지 않고 원인 표시 */
+    if(manual) toast('동기화 실패: '+e.message);
+  }
 }
 /* 변이는 pull-fresh → 적용 → push (덮어쓰기 방지) */
 async function pushMutation(fn,okMsg){
@@ -219,10 +245,9 @@ async function pushMutation(fn,okMsg){
   busy=true; setSync('syncing');
   try{
     const fresh=await remoteGet();
-    if(!fresh) throw new Error('원격 데이터 없음');
     fn(fresh);
     await remotePut(fresh);
-    data=fresh; render(); setSync('ok');
+    data=fresh; safeRender(); setSync('ok');
     if(okMsg) toast(okMsg);
   }catch(e){ setSync('err',e.message); toast('기록 실패: '+e.message); }
   busy=false;
