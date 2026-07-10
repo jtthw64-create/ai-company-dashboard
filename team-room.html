@@ -47,6 +47,33 @@
   .chiprow{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
   .qchip{font-size:12px;color:var(--ink2);background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:2px 8px}
   .qchip.block{color:var(--clay);border-color:var(--clay-soft)}
+  /* 팀 특화 */
+  .tiles{display:flex;gap:10px;flex-wrap:wrap}
+  .tile{flex:1;min-width:90px;background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:10px 12px;text-align:center}
+  .tile .n{font-size:22px;font-weight:700;color:var(--accent);font-variant-numeric:tabular-nums;line-height:1.1}
+  .tile .lb{font-size:11px;color:var(--ink3);margin-top:2px}
+  .track{list-style:none;margin-top:2px}
+  .track li{display:flex;align-items:center;gap:9px;padding:6px 0;border-bottom:1px solid var(--paper);font-size:13.5px}
+  .track li:last-child{border-bottom:none}
+  .track .st{font-size:12px;font-weight:600;border-radius:5px;padding:1px 7px;white-space:nowrap;flex:none}
+  .track .st.done{color:var(--green);background:var(--green-soft)}
+  .track .st.doing{color:var(--amber);background:var(--amber-soft)}
+  .track .st.todo{color:var(--ink3);background:var(--paper);border:1px solid var(--line)}
+  .track .pn{font-weight:700;color:var(--accent);min-width:52px;flex:none}
+  .idxbar{display:flex;height:16px;border-radius:5px;overflow:hidden;margin-top:4px;border:1px solid var(--line)}
+  .idxbar i{display:block;height:100%}
+  .idxlegend{display:flex;gap:10px;flex-wrap:wrap;margin-top:7px;font-size:11.5px;color:var(--ink2)}
+  .idxlegend span::before{content:'';display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+  .prog{margin-top:4px}
+  .prog-row{display:flex;align-items:center;gap:9px;margin-bottom:7px}
+  .prog-k{font-weight:700;color:var(--accent);min-width:16px;flex:none}
+  .prog-name{font-size:13px;color:var(--ink);min-width:120px;flex:none}
+  .prog-bar{flex:1;height:8px;background:var(--paper);border:1px solid var(--line);border-radius:5px;overflow:hidden}
+  .prog-bar i{display:block;height:100%;background:var(--accent)}
+  .prog-n{font-size:12px;color:var(--ink3);font-variant-numeric:tabular-nums;flex:none;min-width:34px;text-align:right}
+  .kv{font-size:13px;color:var(--ink2);margin-top:6px}
+  .kv b{color:var(--ink);font-weight:600}
+  .gitclean{color:var(--green)} .gitdirty{color:var(--clay)}
   .actbtns{display:flex;gap:7px;flex-wrap:wrap}
   button.act{font:inherit;font-size:12.5px;font-weight:600;color:var(--accent);background:var(--accent-soft);border:1px solid var(--accent-line);border-radius:999px;padding:5px 12px;cursor:pointer}
   button.act:hover{background:var(--accent);color:#fff}
@@ -267,6 +294,55 @@ async function submitExec(i){const k=String(i);const ta=document.getElementById(
   toast('실행 요청을 보냈습니다 — 회사 접수함에서 확인됩니다');}
 function submitDetail(i,v){room.items[i].detail=v;touch();schedulePush();}
 
+/* ===== 팀 특화 카드 (디스패처가 company gist teams[].room에 실어준 데이터) ===== */
+function renderSpecial(){
+  const R=companyTeam&&companyTeam.room;
+  if(!R) return `<section><h2>${esc(CFG.name.replace(' 회의실',''))} 특화</h2><div class="muted">정기 회차(04·18·23시) 또는 [새로고침] 후 표시됩니다. 담당 원장: ${esc(CFG.ledger)}</div></section>`;
+  if(TEAM==='dev'){
+    const track=(R.deployTrack||[]).map(p=>{
+      const st=p.status==='done'?'done':p.status==='doing'?'doing':'todo';
+      const lb=st==='done'?'완료':st==='doing'?'진행':'대기';
+      return `<li><span class="pn">P${esc(p.n)}</span><span class="st ${st}">${lb}</span><span>${esc(p.label)}</span></li>`;
+    }).join('');
+    return `<section><h2>배포 트랙 · eBookshelf</h2>
+      <ul class="track">${track||'<li class="muted">트랙 정보 없음</li>'}</ul>
+      <div class="kv">다음: <b>${esc(R.nextPhase||'-')}</b></div>
+      <div class="kv">최근 커밋: <b>${esc(R.lastCommit||'-')}</b> · 워킹트리 <span class="${R.gitDirty?'gitdirty':'gitclean'}">${R.gitDirty?'변경 있음(dirty)':'clean'}</span></div>
+    </section>`;
+  }
+  if(TEAM==='research'){
+    const x=R.index||{};
+    const total=x.total||((x['미독']||0)+(x['보고서만']||0)+(x['정독']||0)+(x['인용됨']||0))||1;
+    const seg=(k,c)=>{const v=x[k]||0;return v?`<i style="width:${v/total*100}%;background:${c}" title="${k} ${v}"></i>`:'';};
+    return `<section><h2>연구 파이프라인</h2>
+      <div class="tiles">
+        <div class="tile"><div class="n">${R.inbox||0}</div><div class="lb">inbox 대기</div></div>
+        <div class="tile"><div class="n">${R.failed||0}</div><div class="lb">99_failed</div></div>
+        <div class="tile"><div class="n">${total}</div><div class="lb">인덱스 문헌</div></div>
+        <div class="tile"><div class="n">${R.lock?'🔒':'—'}</div><div class="lb">배치 lock</div></div>
+      </div>
+      <div style="margin-top:12px;font-size:12px;color:var(--ink3);font-weight:700">읽기 상태</div>
+      <div class="idxbar">${seg('미독','#96A0AE')}${seg('보고서만','#D9A75B')}${seg('정독','#5A9')}${seg('인용됨','#1D6B4C')}</div>
+      <div class="idxlegend">
+        <span style="--_c">미독 ${x['미독']||0}</span><span>보고서만 ${x['보고서만']||0}</span><span>정독 ${x['정독']||0}</span><span>인용됨 ${x['인용됨']||0}</span>
+      </div>
+      <div class="docbtns" style="margin-top:10px"><a class="btn ghost small" href="obsidian://open?vault=LLM%20WIKI" title="Obsidian LLM WIKI 열기">📚 LLM WIKI 열기</a></div>
+    </section>`;
+  }
+  if(TEAM==='business'){
+    const rows=(R.sections||[]).map(s=>{
+      const pct=s.total?Math.round(s.done/s.total*100):0;
+      return `<div class="prog-row"><span class="prog-k">${esc(s.k)}</span><span class="prog-name">${esc(s.name)}</span><span class="prog-bar"><i style="width:${pct}%"></i></span><span class="prog-n">${s.done}/${s.total}</span></div>`;
+    }).join('');
+    const next=(R.next||[]).map(n=>`<span class="qchip">${esc(n)}</span>`).join('');
+    return `<section><h2>Hubrary 출시 체크리스트</h2>
+      <div class="prog">${rows||'<div class="muted">체크리스트 정보 없음</div>'}</div>
+      ${next?`<div style="margin-top:10px;font-size:12px;color:var(--ink3);font-weight:700">다음 액션</div><div class="chiprow">${next}</div>`:''}
+    </section>`;
+  }
+  return '';
+}
+
 /* ===== 렌더 ===== */
 function render(){
   const app=document.getElementById('app');
@@ -281,6 +357,8 @@ function render(){
     if(q||b)h+=`<div class="chiprow">${q}${b}</div>`;
   } else h+=`<div class="muted">회사 상태 미연결 — [동기화 설정]에서 토큰 입력 후 [새로고침]. 담당 원장: ${esc(CFG.ledger)}</div>`;
   h+='</section>';
+  /* 팀 특화 카드 */
+  h+=renderSpecial();
   /* 바로 실행 */
   h+='<section><h2>바로 실행 (회사 접수함 → 자동 처리)</h2><div class="actbtns">';
   CFG.actions.forEach(x=>{h+=`<button class="act" onclick="presetAction('${x.a}',${x.w?`'${x.w}'`:'null'},${x.needsText?'true':'false'})">${esc(x.l)}</button>`;});
