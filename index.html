@@ -114,7 +114,8 @@
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <a class="btn ghost" href="https://jtthw64-create.github.io/church-ministry-dashboard/" title="하위 보드: 행사 접수·단계 실행">⛪ 사역 오케스트레이션</a>
       <button class="btn ghost" onclick="openSettings()">동기화 설정</button>
-      <button class="btn ghost" onclick="addAction('secretary','company.refresh',null,false)" title="디스패처가 5분 내 팀 상태를 다시 수집해 이 화면을 갱신">상태 새로고침</button>
+      <button class="btn ghost" onclick="addAction('secretary','company.refresh',null,false)" title="접수함에 새로고침 요청을 넣습니다 — [▶ 디스패처 실행]으로 처리">상태 새로고침</button>
+      <button class="btn ghost" onclick="copyText('접수함을 처리해줘 — ~/.claude/scheduled-tasks/company-dispatcher/SKILL.md 절차를 1회 수행하라.','디스패처 실행 프롬프트 복사됨 — Claude에 붙여넣으면 접수함이 처리됩니다')" title="수동 모드: 복사해서 Claude 세션에 붙여넣거나, 앱 Scheduled에서 company-dispatcher Run now">▶ 디스패처 실행</button>
       <button class="btn" onclick="refresh(true)">지금 동기화</button>
     </div>
   </header>
@@ -269,7 +270,7 @@ function addAction(team,action,when,needsText){
   const req={id:'r-'+Date.now().toString(36),at:now,team,action,text,status:'new',updatedAt:now};
   if(when) req.when=when;
   pushMutation(d=>{ d.requests=d.requests||[]; d.requests.push(req); },
-    '실행 요청 접수 — 디스패처가 5분 내 시작합니다 (iMac 가동 기준)');
+    '접수됨 — [▶ 디스패처 실행]을 누르면 처리됩니다 (수동 모드)');
   if(needsText){ const inp=document.getElementById('ord_'+team); if(inp) inp.value=''; }
 }
 /* 자유 텍스트 지시 — 화이트리스트 아님 → 사용자 실행(디스패처가 user로 표시) */
@@ -281,7 +282,7 @@ function addRequest(team){
   pushMutation(d=>{
     d.requests=d.requests||[];
     d.requests.push({id:'r-'+Date.now().toString(36),at:now,team,action:'free',text,status:'new',updatedAt:now});
-  },'접수했습니다 — 디스패처가 안전 판정 후 5분 내 실행하거나 "사용자 실행"으로 보류합니다(사유 표시)');
+  },'접수됨 — [▶ 디스패처 실행] 시 안전 판정 후 자동 실행되거나 "사용자 실행"으로 보류됩니다');
   if(inp) inp.value='';
 }
 function markDone(id){
