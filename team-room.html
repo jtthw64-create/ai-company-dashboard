@@ -389,7 +389,7 @@ function render(){
   /* 메모 */
   h+=`<section class="notes"><h2>회의 메모</h2><textarea placeholder="회의 결정·확인 필요 항목을 자유롭게 기록 (자동 저장)" oninput="room.notes=this.value;touch();schedulePush()">${esc(room.notes||'')}</textarea></section>`;
   app.innerHTML=h;
-  document.getElementById('foot').innerHTML=`${esc(CFG.name)} — 실행 요청은 회사 접수함으로 전달돼 몇 분 내 처리(안전 판정 통과 시). 상위: <a href="https://jtthw64-create.github.io/ai-company-dashboard/">컴퍼니 상황판</a> · 사역: <a href="https://jtthw64-create.github.io/church-ministry-dashboard/">사역팀 회의실</a>`;
+  document.getElementById('foot').innerHTML=`${esc(CFG.name)} — 실행 요청은 회사 접수함으로 전달돼 몇 분 내 처리(안전 판정 통과 시). 상위: <a href="https://jtthw64-create.github.io/ai-company-dashboard/">컴퍼니 상황판</a> · 사역: <a href="https://jtthw64-create.github.io/ai-company-dashboard/ministry-room.html">사역팀 회의실</a>`;
 }
 
 function startPolling(){clearInterval(pollTimer);pollTimer=setInterval(()=>{if(document.visibilityState==='visible'&&!pushTimer){pullRoom();pullCompany().then(()=>{if(!isEditing())render();});}},POLL_MS);

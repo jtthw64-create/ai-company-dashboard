@@ -134,7 +134,7 @@
     <a class="room-link" href="https://jtthw64-create.github.io/ai-company-dashboard/team-room.html?team=dev">💻 개발팀 회의실</a>
     <a class="room-link" href="https://jtthw64-create.github.io/ai-company-dashboard/team-room.html?team=research">📚 연구팀 회의실</a>
     <a class="room-link" href="https://jtthw64-create.github.io/ai-company-dashboard/team-room.html?team=business">💼 사업팀 회의실</a>
-    <a class="room-link" href="https://jtthw64-create.github.io/church-ministry-dashboard/">⛪ 사역팀 회의실</a>
+    <a class="room-link" href="https://jtthw64-create.github.io/ai-company-dashboard/ministry-room.html">⛪ 사역팀 회의실</a>
   </div>
   <div id="app"><div class="empty"><p>불러오는 중…</p></div></div>
   <div class="toast" id="toast"></div>
@@ -440,7 +440,7 @@ function render(){
     (!wlOn?'':(wl.length?`<div style="font-size:12.5px;font-family:ui-monospace,monospace;color:var(--ink2);line-height:1.9;overflow-x:auto">${wl.map(l=>esc(l).replace(/^- /,'')).join('<br>')}</div>`
     :`<p style="font-size:13px;color:var(--ink3)">최근 48시간 기록 없음 — 실행이 일어나면 여기에 1줄씩 쌓입니다 (전문: Dropbox worklog/)</p>`))+
     `</div>
-    <div class="footnote">이 페이지가 <b>커맨드센터</b>입니다 — 팀 카드의 <b>[▶ 실행]</b> 버튼을 누르면 요청이 전달되고 <b>1분 내</b> 자동 처리됩니다(입력만으로는 실행되지 않음). 배치·개발구현은 정기 회차(04·18·23시)에 실행. 상태는 정기 회차에 갱신, [새로고침]은 화면만 다시 불러옵니다. 각 팀 원장이 항상 우선 · 팀별 상세는 상단 <b>팀 회의실</b> · 행사 실행은 <a href="https://jtthw64-create.github.io/church-ministry-dashboard/">사역팀 회의실</a></div>`;
+    <div class="footnote">이 페이지가 <b>커맨드센터</b>입니다 — 팀 카드의 <b>[▶ 실행]</b> 버튼을 누르면 요청이 전달되고 <b>1분 내</b> 자동 처리됩니다(입력만으로는 실행되지 않음). 배치·개발구현은 정기 회차(04·18·23시)에 실행. 상태는 정기 회차에 갱신, [새로고침]은 화면만 다시 불러옵니다. 각 팀 원장이 항상 우선 · 팀별 상세는 상단 <b>팀 회의실</b> · 행사 실행은 <a href="https://jtthw64-create.github.io/ai-company-dashboard/ministry-room.html">사역팀 회의실</a></div>`;
   app.innerHTML=html;
 }
 function teamName(id){ const t=(data&&data.teams||[]).find(x=>x.id===id); return t?t.name:(id||''); }
