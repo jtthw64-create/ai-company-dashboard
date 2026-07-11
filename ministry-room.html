@@ -195,13 +195,12 @@
 </dialog>
 
 <dialog id="setDlg">
-  <h3>Gist 동기화 설정</h3>
+  <h3>동기화 설정</h3>
   <div class="f"><label>GitHub 토큰 (gist 권한만)</label><input id="sToken" type="password" placeholder="ghp_... 또는 github_pat_...">
     <div class="hint">이 브라우저의 localStorage에만 저장됩니다. 저장소·Gist에 절대 기록하지 마세요.</div></div>
-  <div class="f"><label>Gist ID</label><input id="sGist" placeholder="예: a1b2c3d4e5...">
-    <div class="hint">없으면 토큰만 입력하고 "새 Gist 생성"을 누르세요.</div></div>
-  <div class="dact" style="justify-content:space-between">
-    <button class="btn ghost small" onclick="createGistFromDlg()">새 Gist 생성</button>
+  <input id="sGist" type="hidden">
+  <div class="hint">행사 데이터 저장소는 코드에 내장되어 있습니다 — <b>토큰만</b> 입력하면 됩니다.</div>
+  <div class="dact" style="justify-content:flex-end">
     <div style="display:flex;gap:8px">
       <button class="btn ghost" onclick="document.getElementById('setDlg').close()">닫기</button>
       <button class="btn" onclick="saveSettings()">저장 후 동기화</button>
@@ -213,6 +212,8 @@
 const KEY='church-orch-v1';            /* 로컬 캐시 (v1과 호환) */
 const CONFIG_KEY='church-orch-config-v1';
 const DATA_FILE='church-orch-data.json';
+/* 교회 행사 데이터 gist — 코드에 내장(다른 팀 회의실처럼 토큰만 입력하면 됨, 별도 ID 입력 불필요) */
+const DEFAULT_GIST_ID='c782caec4bbe9e2e57ca21b27204577d';
 const COMPANY_GIST_ID='b46a4393b6255a460fa29b94ccbfa83f';  /* AI Company 상황판 접수함 — 실행 요청 전달처 */
 const COMPANY_GIST_FILE='company-status.json';
 const REQ_LABEL={new:'접수',running:'실행 중',dispatched:'실행 예약',queued:'정기 회차 대기',seen:'확인',user:'사용자 실행',done:'완료'};
@@ -262,7 +263,8 @@ document.addEventListener('focusout', ()=>{
 }, true);
 
 /* ---------- 설정 ---------- */
-function loadConfig(){ try{ config=JSON.parse(localStorage.getItem(CONFIG_KEY))||{}; }catch(e){ config={}; } }
+function loadConfig(){ try{ config=JSON.parse(localStorage.getItem(CONFIG_KEY))||{}; }catch(e){ config={}; }
+  if(!config.gistId) config.gistId=DEFAULT_GIST_ID; /* gist ID 내장 — 사용자는 토큰만 입력 */ }
 function persistConfig(){ try{ localStorage.setItem(CONFIG_KEY,JSON.stringify(config)); }catch(e){} }
 function openSettings(){ loadConfig();
   document.getElementById('sToken').value=config.token||'';
@@ -270,7 +272,7 @@ function openSettings(){ loadConfig();
   document.getElementById('setDlg').showModal(); }
 async function saveSettings(){
   config.token=document.getElementById('sToken').value.trim();
-  config.gistId=document.getElementById('sGist').value.trim();
+  config.gistId=document.getElementById('sGist').value.trim()||DEFAULT_GIST_ID;
   persistConfig();
   document.getElementById('setDlg').close();
   await syncNow();
