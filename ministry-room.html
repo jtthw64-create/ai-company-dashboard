@@ -258,7 +258,7 @@ const DATA_FILE='church-orch-data.json';
 const DEFAULT_GIST_ID='c782caec4bbe9e2e57ca21b27204577d';
 const COMPANY_GIST_ID='b46a4393b6255a460fa29b94ccbfa83f';  /* AI Company 상황판 접수함 — 실행 요청 전달처 */
 const COMPANY_GIST_FILE='company-status.json';
-const REQ_LABEL={new:'접수',running:'실행 중',dispatched:'실행 예약',queued:'정기 회차 대기',seen:'확인',user:'사용자 실행',done:'완료'};
+const REQ_LABEL={new:'접수',running:'실행 중',dispatched:'실행 예약',queued:'정기 회차 대기',seen:'확인',user:'사용자 실행',done:'완료',cancelled:'회수됨'};
 
 const PHASES=[
  {k:'pastor',  n:'1',  t:'목회자 세션',   s:'주제 · 목표 · 말씀 방향',
@@ -366,7 +366,7 @@ async function sendMinistryRequest(text,action){
   action=action||'free';
   if(!config.token){ toast('먼저 동기화 설정에서 토큰을 입력해 주세요'); return null; }
   const id='r-'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
-  const now=new Date().toISOString();
+  const now=nowKST();
   try{
     const r=await fetch('https://api.github.com/gists/'+COMPANY_GIST_ID,{headers:ghHeadersOpt()});
     if(!r.ok) throw new Error('HTTP '+r.status);
@@ -411,7 +411,7 @@ function absorbResults(){
       const rid=b.ref&&b.ref.requestId; if(!rid||already.has(rid)) return;
       const r=companyRequestsMap[rid];
       if(r&&r.status==='done'){
-        ev.board.push({id:genId('b'),at:new Date().toISOString(),author:'executor',kind:'result',text:r.result||'완료',ref:{requestId:rid}});
+        ev.board.push({id:genId('b'),at:nowKST(),author:'executor',kind:'result',text:r.result||'완료',ref:{requestId:rid}});
         touchEvent(ev); dirty=true;
       }
     });
@@ -422,7 +422,7 @@ function absorbResults(){
     const rid=b.ref&&b.ref.requestId; if(!rid||alreadyR.has(rid)) return;
     const r=companyRequestsMap[rid];
     if(r&&r.status==='done'){
-      state.research.push({id:genId('ri'),at:new Date().toISOString(),author:'executor',kind:'result',text:r.result||'완료',sourceEventId:b.sourceEventId||'general',sourceEventName:b.sourceEventName||'전체',ref:{requestId:rid}});
+      state.research.push({id:genId('ri'),at:nowKST(),author:'executor',kind:'result',text:r.result||'완료',sourceEventId:b.sourceEventId||'general',sourceEventName:b.sourceEventName||'전체',ref:{requestId:rid}});
       dirty=true;
     }
   });
@@ -437,7 +437,7 @@ function addBoardMsg(eid){
   const text=(inp&&inp.value||'').trim();
   if(!text) return;
   ev.board=ev.board||[];
-  ev.board.push({id:genId('b'),at:new Date().toISOString(),author:'user',kind:(dcheck&&dcheck.checked)?'decision':'msg',text,ref:null});
+  ev.board.push({id:genId('b'),at:nowKST(),author:'user',kind:(dcheck&&dcheck.checked)?'decision':'msg',text,ref:null});
   if(inp) inp.value='';
   if(dcheck) dcheck.checked=false;
   touchEvent(ev); save(); render();
@@ -449,8 +449,39 @@ function editPlan(eid,value){
 }
 function boardAssignedIds(ev){
   const s=new Set();
-  (ev.board||[]).forEach(b=>{ if((b.kind==='assign'||b.kind==='dispatch')&&b.ref&&Array.isArray(b.ref.entryIds)) b.ref.entryIds.forEach(id=>s.add(id)); });
+  const retracted=retractedIdSet(ev&&ev.board);
+  /* 회수(retract)된 assign/dispatch는 배정 효력 상실 — 원 발언이 다시 접수 대상으로 돌아온다 */
+  (ev.board||[]).forEach(b=>{ if(retracted.has(b.id)) return;
+    if((b.kind==='assign'||b.kind==='dispatch')&&b.ref&&Array.isArray(b.ref.entryIds)) b.ref.entryIds.forEach(id=>s.add(id)); });
   return s;
+}
+/* 접수 회수 — 디스패처가 아직 집어가지 않은(new) 요청을 취소하고 dispatch 기록을 숨긴다. */
+async function cancelCompanyRequest(id){
+  try{
+    const r=await fetch('https://api.github.com/gists/'+COMPANY_GIST_ID,{headers:ghHeadersOpt()});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const j=await r.json(); const f=j.files&&j.files[COMPANY_GIST_FILE];
+    let content=f.content; if(f.truncated){ const rr=await fetch(f.raw_url); content=await rr.text(); }
+    const data=JSON.parse(content);
+    const rq=(data.requests||[]).find(x=>x.id===id);
+    if(!rq) return true; /* 이미 정리됨 */
+    if(rq.status!=='new'){ toast('이미 처리 중이라 회수할 수 없습니다 ('+(REQ_LABEL[rq.status]||rq.status)+')'); return false; }
+    rq.status='cancelled'; rq.updatedAt=nowKST();
+    const put=await fetch('https://api.github.com/gists/'+COMPANY_GIST_ID,{method:'PATCH',headers:ghHeadersOpt(true),
+      body:JSON.stringify({files:{[COMPANY_GIST_FILE]:{content:JSON.stringify(data,null,1)}}})});
+    if(!put.ok) throw new Error('HTTP '+put.status);
+    companyRequestsMap[id]={status:'cancelled'};
+    return true;
+  }catch(e){ toast('회수 실패: '+e.message); return false; }
+}
+async function cancelDispatch(eid,entryId){
+  const ev=state.events.find(e=>e.id===eid); if(!ev) return;
+  const d=(ev.board||[]).find(b=>b.id===entryId); if(!d||!d.ref) return;
+  const ok=await cancelCompanyRequest(d.ref.requestId);
+  if(!ok) return;
+  ev.board.push({id:genId('b'),at:nowKST(),author:'user',kind:'retract',text:'',ref:{entryIds:[entryId]}});
+  touchEvent(ev); save(); render();
+  toast('접수를 회수했습니다 — 발언은 다시 접수 대기로 돌아갑니다');
 }
 /* 취소(tombstone) — append-only 병합과 양립하는 삭제: 배열에서 직접 빼면 union 병합이
    원격 사본에서 항목을 되살리므로, kind:'retract' 엔트리를 append해 지목 항목을 숨긴다. */
@@ -462,7 +493,7 @@ function retractedIdSet(list){
 function retractBoardEntry(eid,entryId){
   const ev=state.events.find(e=>e.id===eid); if(!ev) return;
   ev.board=ev.board||[];
-  ev.board.push({id:genId('b'),at:new Date().toISOString(),author:'user',kind:'retract',text:'',ref:{entryIds:[entryId]}});
+  ev.board.push({id:genId('b'),at:nowKST(),author:'user',kind:'retract',text:'',ref:{entryIds:[entryId]}});
   touchEvent(ev); save(); render();
   toast('보내기를 취소했습니다');
 }
@@ -490,7 +521,7 @@ function submitAssign(eid,entryId){
   const detail=(detailInp&&detailInp.value||'').trim();
   ph.todos.push({text:title,done:false,deadline:'',detail,boardRef:entryId,requestId:'',requestText:''});
   ev.board=ev.board||[];
-  ev.board.push({id:genId('b'),at:new Date().toISOString(),author:'system',kind:'assign',
+  ev.board.push({id:genId('b'),at:nowKST(),author:'system',kind:'assign',
     text:`"${title}" → ${(PHASES.find(p=>p.k===asg.phaseK)||{}).t||asg.phaseK} 배정`,
     ref:{entryIds:[entryId],phaseK:asg.phaseK}});
   view.open=view.open||{}; view.open[asg.phaseK]=true;
@@ -524,7 +555,7 @@ async function dispatchBoard(eid){
   const id=await sendMinistryRequest(text,'ministry.board');
   if(!id) return;
   ev.board=ev.board||[];
-  ev.board.push({id:genId('b'),at:new Date().toISOString(),author:'system',kind:'dispatch',text,ref:{entryIds:pend.map(p=>p.id),requestId:id}});
+  ev.board.push({id:genId('b'),at:nowKST(),author:'system',kind:'dispatch',text,ref:{entryIds:pend.map(p=>p.id),requestId:id}});
   touchEvent(ev); save(); render();
   toast('접수함으로 전송했습니다');
 }
@@ -552,6 +583,12 @@ async function remotePutRaw(payload){
    ISO 문자열을 그대로 비교하면 안 된다(예: "16:06+09:00"가 "08:11Z"보다 실제로는
    과거인데 문자열로는 크게 나옴). 반드시 epoch(ms)로 파싱해 비교한다. */
 function tms(x){ const t=x?Date.parse(x):0; return isNaN(t)?0:t; }
+/* ---------- KST 통일 (2026-07-12 사용자 지시) ----------
+   저장: 새 타임스탬프는 전부 +09:00 오프셋의 KST ISO로 기록(디스패처·스킬과 동일 규약).
+   표시: 과거 UTC(Z) 기록이 섞여 있어도 fmtKST가 epoch로 환산해 항상 한국시간으로 렌더.
+   병합: tms()가 epoch 비교라 오프셋 혼재에 안전(기존 검증 완료). */
+function nowKST(){ return new Date(Date.now()+9*3600e3).toISOString().replace('Z','+09:00'); }
+function fmtKST(iso){ const t=tms(iso); if(!t) return ''; return new Date(t+9*3600e3).toISOString().slice(0,16).replace('T',' '); }
 /* append-only 배열(board·research) 무손실 병합: id로 중복 제거, at순 정렬 */
 function idUnion(arrA,arrB){
   const map=new Map();
@@ -587,9 +624,9 @@ function mergeStates(a,b){
 
   const research=idUnion(a.research,b.research);
 
-  return {version:2, updatedAt:new Date().toISOString(), events, deletedIds, research};
+  return {version:2, updatedAt:nowKST(), events, deletedIds, research};
 }
-function touchEvent(ev){ ev.updatedAt=new Date().toISOString(); ev.rev=(ev.rev||0)+1; }
+function touchEvent(ev){ ev.updatedAt=nowKST(); ev.rev=(ev.rev||0)+1; }
 
 async function syncNow(){
   if(!config.token||!config.gistId){ setSync('local'); toast('동기화 설정에서 토큰과 Gist ID를 입력해 주세요'); return; }
@@ -688,7 +725,7 @@ async function load(){
   if(config.token&&config.gistId){ await syncNow(); startPolling(); pullCompanyRequests(); } else setSync('local');
 }
 function save(){
-  state.updatedAt=new Date().toISOString();
+  state.updatedAt=nowKST();
   cacheWrite();
   schedulePush();
 }
@@ -697,7 +734,7 @@ function save(){
 function exportData(){
   const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
-  a.download='ministry-orch-backup-'+new Date().toISOString().slice(0,10)+'.json';
+  a.download='ministry-orch-backup-'+nowKST().slice(0,10)+'.json';
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   toast('백업 파일을 내려받았습니다');
 }
@@ -750,8 +787,8 @@ function createNewEvent(){
     budget:g('nBudget').trim(), request:g('nReq').trim(),
     intake:'new', folder:'', note:'', inventory:[], wsRequestId:'',
     plan:'', board:[],
-    createdAt:new Date().toISOString().slice(0,10),
-    updatedAt:new Date().toISOString(), rev:0,
+    createdAt:nowKST().slice(0,10),
+    updatedAt:nowKST(), rev:0,
     phases:PHASES.map(p=>({k:p.k,status:'todo',todos:p.d[type].map(x=>({text:x,done:false,deadline:'',detail:'',requestId:'',requestText:'',boardRef:''}))})) };
   state.events.unshift(ev); save();
   document.getElementById('newDlg').close();
@@ -762,8 +799,8 @@ function createNewEvent(){
 function delEvent(id){ if(!confirm('이 행사와 모든 체크 기록을 삭제할까요?')) return;
   state.events=state.events.filter(e=>e.id!==id);
   state.deletedIds=state.deletedIds||[];
-  state.deletedIds.push({id,at:new Date().toISOString()});
-  state.updatedAt=new Date().toISOString(); cacheWrite();
+  state.deletedIds.push({id,at:nowKST()});
+  state.updatedAt=nowKST(); cacheWrite();
   view={mode:'list',id:null,open:{}}; render();
   clearTimeout(pushTimer); pushTimer=null;
   syncNowPushImmediate();
@@ -844,16 +881,26 @@ function submitDetail(eid,k,i,value){
   touchEvent(ev); save();
 }
 /* ---------- 연구 보드 (사역팀 직속, 전 행사 공유, 최상위 append-only) ---------- */
-function saveResearch(){ state.updatedAt=new Date().toISOString(); cacheWrite(); schedulePush(); }
+function saveResearch(){ state.updatedAt=nowKST(); cacheWrite(); schedulePush(); }
 function pendingResearchEntries(){
-  const assigned=new Set();
-  (state.research||[]).forEach(r=>{ if(r.kind==='dispatch'&&r.ref&&Array.isArray(r.ref.entryIds)) r.ref.entryIds.forEach(id=>assigned.add(id)); });
   const retracted=retractedIdSet(state.research);
+  const assigned=new Set();
+  (state.research||[]).forEach(r=>{ if(retracted.has(r.id)) return; /* 회수된 dispatch는 효력 상실 */
+    if(r.kind==='dispatch'&&r.ref&&Array.isArray(r.ref.entryIds)) r.ref.entryIds.forEach(id=>assigned.add(id)); });
   return (state.research||[]).filter(r=>(r.kind==='idea'||r.kind==='plan')&&!assigned.has(r.id)&&!retracted.has(r.id));
+}
+async function cancelResearchDispatch(entryId){
+  const d=(state.research||[]).find(r=>r.id===entryId); if(!d||!d.ref) return;
+  const ok=await cancelCompanyRequest(d.ref.requestId);
+  if(!ok) return;
+  state.research.push({id:genId('ri'),at:nowKST(),author:'user',kind:'retract',text:'',
+    sourceEventId:'general',sourceEventName:'-',ref:{entryIds:[entryId]}});
+  saveResearch(); render();
+  toast('연구 요청을 회수했습니다 — 아이디어는 다시 대기로 돌아갑니다');
 }
 function retractResearchEntry(entryId){
   state.research=state.research||[];
-  state.research.push({id:genId('ri'),at:new Date().toISOString(),author:'user',kind:'retract',text:'',
+  state.research.push({id:genId('ri'),at:nowKST(),author:'user',kind:'retract',text:'',
     sourceEventId:'general',sourceEventName:'-',ref:{entryIds:[entryId]}});
   saveResearch(); render();
   toast('기록을 취소했습니다');
@@ -861,7 +908,7 @@ function retractResearchEntry(entryId){
 function addResearchIdea(text,sourceEventId,sourceEventName){
   text=(text||'').trim(); if(!text) return;
   state.research=state.research||[];
-  state.research.push({id:genId('ri'),at:new Date().toISOString(),author:'user',kind:'idea',text,
+  state.research.push({id:genId('ri'),at:nowKST(),author:'user',kind:'idea',text,
     sourceEventId:sourceEventId||'general',sourceEventName:sourceEventName||'전체',ref:null});
   saveResearch();
 }
@@ -875,7 +922,7 @@ async function dispatchResearch(){
   const id=await sendMinistryRequest(text,'ministry.research');
   if(!id) return;
   state.research=state.research||[];
-  state.research.push({id:genId('ri'),at:new Date().toISOString(),author:'system',kind:'dispatch',text,
+  state.research.push({id:genId('ri'),at:nowKST(),author:'system',kind:'dispatch',text,
     sourceEventId:'general',sourceEventName:'-',ref:{entryIds:pend.map(p=>p.id),requestId:id}});
   saveResearch(); render();
   toast('연구실행 요청을 보냈습니다(연구 스킬 완성 전엔 사용자 실행 대기로 표시됩니다)');
@@ -937,7 +984,7 @@ function boardToMd(ev){
   const lines=[`# ${ev.name} — 기획 보드 회의록 (복원용 백업)`,'',`## 고정 기획안`,ev.plan||'(없음)','','## 타임라인'];
   (ev.board||[]).forEach(b=>{
     if(b.kind==='retract'||retracted.has(b.id)) return; /* 취소분은 회의록에서도 제외 */
-    lines.push(`### ${kindMd[b.kind]||b.kind} · ${b.author} · ${(b.at||'').slice(0,16).replace('T',' ')}`);
+    lines.push(`### ${kindMd[b.kind]||b.kind} · ${b.author} · ${fmtKST(b.at)}`);
     lines.push(b.text||''); lines.push('');
   });
   return lines.join('\n');
@@ -958,8 +1005,8 @@ function renderBoard(ev){
         const isOpenAsg=asg&&asg.entryId===b.id;
         return `<div class="bmsg k-${esc(b.kind)}">
           ${canAssign?`<button class="bx" title="보내기 취소(기록에서 숨김)" onclick="retractBoardEntry('${ev.id}','${b.id}')">✕</button>`:''}
-          <div class="bmeta">${boardEntryLabel(b.kind)} <span class="bauthor">${esc(b.author)}</span> · ${esc((b.at||'').slice(0,16).replace('T',' '))}</div>
-          <div class="btext">${esc(b.text)}${b.kind==='dispatch'?reqChip(b.ref&&b.ref.requestId):''}</div>
+          <div class="bmeta">${boardEntryLabel(b.kind)} <span class="bauthor">${esc(b.author)}</span> · ${esc(fmtKST(b.at))}</div>
+          <div class="btext">${esc(b.text)}${b.kind==='dispatch'?reqChip(b.ref&&b.ref.requestId):''}${(b.kind==='dispatch'&&b.ref&&(!companyRequestsMap[b.ref.requestId]||companyRequestsMap[b.ref.requestId].status==='new'))?` <button class="btn ghost small" onclick="cancelDispatch('${ev.id}','${b.id}')" title="아직 처리 전인 접수를 취소하고 발언을 대기로 되돌립니다">회수</button>`:''}</div>
           ${canAssign?`<select class="bassign" onchange="if(this.value)openAssignForm('${ev.id}','${b.id}',this.value);this.value=''">
             <option value="">배정…</option>${PHASES.map(p=>`<option value="${p.k}">${p.n} ${esc(p.t)}</option>`).join('')}
           </select>`:''}
@@ -986,7 +1033,8 @@ function renderResearch(sourceEventId,sourceEventName,filterAll){
   const pendCount=pendingResearchEntries().length;
   const rRetracted=retractedIdSet(state.research);
   const rDispatched=new Set();
-  (state.research||[]).forEach(r=>{ if(r.kind==='dispatch'&&r.ref&&Array.isArray(r.ref.entryIds)) r.ref.entryIds.forEach(id=>rDispatched.add(id)); });
+  (state.research||[]).forEach(r=>{ if(rRetracted.has(r.id)) return;
+    if(r.kind==='dispatch'&&r.ref&&Array.isArray(r.ref.entryIds)) r.ref.entryIds.forEach(id=>rDispatched.add(id)); });
   const items=(state.research||[]).filter(r=>(filterAll||r.sourceEventId===sourceEventId)&&r.kind!=='retract'&&!rRetracted.has(r.id));
   const inputId='researchInput_'+sanitizeKey(sourceEventId);
   return `<details class="research">
@@ -994,8 +1042,8 @@ function renderResearch(sourceEventId,sourceEventName,filterAll){
     <div class="boardlog" style="margin-top:10px">
       ${items.map(r=>`<div class="bmsg k-${esc(r.kind)}">
         ${((r.kind==='idea'||r.kind==='plan')&&!rDispatched.has(r.id))?`<button class="bx" title="기록 취소(숨김)" onclick="retractResearchEntry('${r.id}')">✕</button>`:''}
-        <div class="bmeta">${boardEntryLabel(r.kind)} <span class="bauthor">${esc(r.author)}</span> · ${esc((r.at||'').slice(0,16).replace('T',' '))}<span class="rsrc">${esc(r.sourceEventName||'전체')}</span></div>
-        <div class="btext">${esc(r.text)}${r.kind==='dispatch'?reqChip(r.ref&&r.ref.requestId,'ministry.research'):''}</div>
+        <div class="bmeta">${boardEntryLabel(r.kind)} <span class="bauthor">${esc(r.author)}</span> · ${esc(fmtKST(r.at))}<span class="rsrc">${esc(r.sourceEventName||'전체')}</span></div>
+        <div class="btext">${esc(r.text)}${r.kind==='dispatch'?reqChip(r.ref&&r.ref.requestId,'ministry.research'):''}${(r.kind==='dispatch'&&r.ref&&(!companyRequestsMap[r.ref.requestId]||companyRequestsMap[r.ref.requestId].status==='new'))?` <button class="btn ghost small" onclick="cancelResearchDispatch('${r.id}')" title="아직 처리 전인 요청을 취소합니다">회수</button>`:''}</div>
       </div>`).join('')||'<div class="muted" style="padding:6px 0">아직 아이디어가 없습니다</div>'}
     </div>
     <div class="boardinput">
