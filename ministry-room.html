@@ -134,6 +134,7 @@
   .bmsg.k-assign{border-left:3px solid var(--pine-line);color:var(--ink2);font-size:12.5px}
   .bmsg.k-dispatch{border-left:3px solid var(--pine)}
   .bmsg.k-result{border-left:3px solid var(--pine);background:var(--pine-soft)}
+  .bmsg.k-reply{border-left:3px solid var(--clay);background:var(--clay-soft)}
   .bmsg.k-idea{border-left:3px solid var(--amber-soft)}
   .bmeta{font-size:11px;color:var(--ink3);margin-bottom:2px}
   .btext{white-space:pre-wrap;word-break:break-word}
@@ -496,11 +497,11 @@ async function dispatchBoard(eid){
   const ev=state.events.find(e=>e.id===eid); if(!ev) return;
   const pend=pendingBoardEntries(ev);
   if(!pend.length){ toast('접수할 새 내용이 없습니다'); return; }
-  const draft=`[사역/${ev.name}/회의록] `+pend.map(p=>p.text).join(' / ');
+  const draft=`[사역/${ev.name}/회의록] 행사id:${ev.id} `+pend.map(p=>p.text).join(' / ');
   const edited=await confirmDispatchText(draft,'회의 내용 접수 확인');
   if(edited===null) return;
   const text=edited.trim(); if(!text) return;
-  const id=await sendMinistryRequest(text,'free');
+  const id=await sendMinistryRequest(text,'ministry.board');
   if(!id) return;
   ev.board=ev.board||[];
   ev.board.push({id:genId('b'),at:new Date().toISOString(),author:'system',kind:'dispatch',text,ref:{entryIds:pend.map(p=>p.id),requestId:id}});
@@ -518,9 +519,11 @@ function reqChip(id,actionHint){
 }
 function genId(prefix){ return prefix+'-'+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
 async function remotePutRaw(payload){
+  const files={[DATA_FILE]:{content:JSON.stringify(payload,null,1)}};
+  (payload.events||[]).forEach(ev=>{ if(ev.board&&ev.board.length) files[docKeyForBoard(ev.id)]={content:boardToMd(ev)}; });
   const r=await fetch('https://api.github.com/gists/'+config.gistId,{method:'PATCH',
     headers:ghHeaders(true),
-    body:JSON.stringify({files:{[DATA_FILE]:{content:JSON.stringify(payload,null,1)}}})});
+    body:JSON.stringify({files})});
   if(!r.ok) throw new Error('HTTP '+r.status);
 }
 
@@ -897,7 +900,18 @@ function fallbackCopy(txt,done){ const ta=document.createElement('textarea'); ta
   ta.select(); try{document.execCommand('copy');done();}catch(e){prompt('아래 내용을 복사하세요',txt);} document.body.removeChild(ta); }
 
 /* ---------- 보드 렌더 ---------- */
-function boardEntryLabel(kind){ return {msg:'',decision:'⚖ 결정',assign:'→ 배정',dispatch:'📨 접수',result:'✅ 결과',idea:'💡 아이디어',plan:'📝 계획'}[kind]||''; }
+function boardEntryLabel(kind){ return {msg:'',decision:'⚖ 결정',assign:'→ 배정',dispatch:'📨 접수',result:'✅ 결과',reply:'💬 회신',idea:'💡 아이디어',plan:'📝 계획'}[kind]||''; }
+/* 회의록 md 미러(복원용 백업, gist에만 저장 — 클릭 열람 대상 아님). remotePutRaw의 동일 PATCH에 실려 감. */
+function docKeyForBoard(eid){ return 'board__'+sanitizeKey(eid)+'.md'; }
+function boardToMd(ev){
+  const kindMd={msg:'💬',decision:'⚖ 결정',assign:'→ 배정',dispatch:'📨 접수',result:'✅ 결과',reply:'💬 회신'};
+  const lines=[`# ${ev.name} — 기획 보드 회의록 (복원용 백업)`,'',`## 고정 기획안`,ev.plan||'(없음)','','## 타임라인'];
+  (ev.board||[]).forEach(b=>{
+    lines.push(`### ${kindMd[b.kind]||b.kind} · ${b.author} · ${(b.at||'').slice(0,16).replace('T',' ')}`);
+    lines.push(b.text||''); lines.push('');
+  });
+  return lines.join('\n');
+}
 function renderBoard(ev){
   const assigned=boardAssignedIds(ev);
   const pendCount=pendingBoardEntries(ev).length;
