@@ -135,6 +135,11 @@
   .bmsg.k-dispatch{border-left:3px solid var(--pine)}
   .bmsg.k-result{border-left:3px solid var(--pine);background:var(--pine-soft)}
   .bmsg.k-reply{border-left:3px solid var(--clay);background:var(--clay-soft)}
+  .bmsg{position:relative}
+  .bmsg .bx{position:absolute;top:5px;right:7px;background:none;border:none;color:var(--ink3);cursor:pointer;font-size:13px;padding:0 3px;visibility:hidden}
+  .bmsg:hover .bx{visibility:visible}
+  .bmsg .bx:hover{color:var(--clay)}
+  @media (max-width:560px){ .bmsg .bx{visibility:visible} }
   .bmsg.k-idea{border-left:3px solid var(--amber-soft)}
   .bmeta{font-size:11px;color:var(--ink3);margin-bottom:2px}
   .btext{white-space:pre-wrap;word-break:break-word}
@@ -447,9 +452,24 @@ function boardAssignedIds(ev){
   (ev.board||[]).forEach(b=>{ if((b.kind==='assign'||b.kind==='dispatch')&&b.ref&&Array.isArray(b.ref.entryIds)) b.ref.entryIds.forEach(id=>s.add(id)); });
   return s;
 }
+/* 취소(tombstone) — append-only 병합과 양립하는 삭제: 배열에서 직접 빼면 union 병합이
+   원격 사본에서 항목을 되살리므로, kind:'retract' 엔트리를 append해 지목 항목을 숨긴다. */
+function retractedIdSet(list){
+  const s=new Set();
+  (list||[]).forEach(b=>{ if(b.kind==='retract'&&b.ref&&Array.isArray(b.ref.entryIds)) b.ref.entryIds.forEach(id=>s.add(id)); });
+  return s;
+}
+function retractBoardEntry(eid,entryId){
+  const ev=state.events.find(e=>e.id===eid); if(!ev) return;
+  ev.board=ev.board||[];
+  ev.board.push({id:genId('b'),at:new Date().toISOString(),author:'user',kind:'retract',text:'',ref:{entryIds:[entryId]}});
+  touchEvent(ev); save(); render();
+  toast('보내기를 취소했습니다');
+}
 function pendingBoardEntries(ev){
   const assigned=boardAssignedIds(ev);
-  return (ev.board||[]).filter(b=>(b.kind==='msg'||b.kind==='decision')&&!assigned.has(b.id));
+  const retracted=retractedIdSet(ev.board);
+  return (ev.board||[]).filter(b=>(b.kind==='msg'||b.kind==='decision')&&!assigned.has(b.id)&&!retracted.has(b.id));
 }
 function openAssignForm(eid,entryId,phaseK){
   if(!phaseK) return;
@@ -828,7 +848,15 @@ function saveResearch(){ state.updatedAt=new Date().toISOString(); cacheWrite();
 function pendingResearchEntries(){
   const assigned=new Set();
   (state.research||[]).forEach(r=>{ if(r.kind==='dispatch'&&r.ref&&Array.isArray(r.ref.entryIds)) r.ref.entryIds.forEach(id=>assigned.add(id)); });
-  return (state.research||[]).filter(r=>(r.kind==='idea'||r.kind==='plan')&&!assigned.has(r.id));
+  const retracted=retractedIdSet(state.research);
+  return (state.research||[]).filter(r=>(r.kind==='idea'||r.kind==='plan')&&!assigned.has(r.id)&&!retracted.has(r.id));
+}
+function retractResearchEntry(entryId){
+  state.research=state.research||[];
+  state.research.push({id:genId('ri'),at:new Date().toISOString(),author:'user',kind:'retract',text:'',
+    sourceEventId:'general',sourceEventName:'-',ref:{entryIds:[entryId]}});
+  saveResearch(); render();
+  toast('기록을 취소했습니다');
 }
 function addResearchIdea(text,sourceEventId,sourceEventName){
   text=(text||'').trim(); if(!text) return;
@@ -905,8 +933,10 @@ function boardEntryLabel(kind){ return {msg:'',decision:'⚖ 결정',assign:'→
 function docKeyForBoard(eid){ return 'board__'+sanitizeKey(eid)+'.md'; }
 function boardToMd(ev){
   const kindMd={msg:'💬',decision:'⚖ 결정',assign:'→ 배정',dispatch:'📨 접수',result:'✅ 결과',reply:'💬 회신'};
+  const retracted=retractedIdSet(ev.board);
   const lines=[`# ${ev.name} — 기획 보드 회의록 (복원용 백업)`,'',`## 고정 기획안`,ev.plan||'(없음)','','## 타임라인'];
   (ev.board||[]).forEach(b=>{
+    if(b.kind==='retract'||retracted.has(b.id)) return; /* 취소분은 회의록에서도 제외 */
     lines.push(`### ${kindMd[b.kind]||b.kind} · ${b.author} · ${(b.at||'').slice(0,16).replace('T',' ')}`);
     lines.push(b.text||''); lines.push('');
   });
@@ -914,6 +944,7 @@ function boardToMd(ev){
 }
 function renderBoard(ev){
   const assigned=boardAssignedIds(ev);
+  const retracted=retractedIdSet(ev.board);
   const pendCount=pendingBoardEntries(ev).length;
   const asg=view.assignOpen&&view.assignOpen.eid===ev.id?view.assignOpen:null;
   return `<div class="board">
@@ -922,9 +953,11 @@ function renderBoard(ev){
       oninput="editPlan('${ev.id}',this.value)">${esc(ev.plan||'')}</textarea>
     <div class="boardlog">
       ${(ev.board||[]).map(b=>{
+        if(b.kind==='retract'||retracted.has(b.id)) return ''; /* 취소된 발언·취소 표식은 숨김 */
         const canAssign=(b.kind==='msg'||b.kind==='decision')&&!assigned.has(b.id);
         const isOpenAsg=asg&&asg.entryId===b.id;
         return `<div class="bmsg k-${esc(b.kind)}">
+          ${canAssign?`<button class="bx" title="보내기 취소(기록에서 숨김)" onclick="retractBoardEntry('${ev.id}','${b.id}')">✕</button>`:''}
           <div class="bmeta">${boardEntryLabel(b.kind)} <span class="bauthor">${esc(b.author)}</span> · ${esc((b.at||'').slice(0,16).replace('T',' '))}</div>
           <div class="btext">${esc(b.text)}${b.kind==='dispatch'?reqChip(b.ref&&b.ref.requestId):''}</div>
           ${canAssign?`<select class="bassign" onchange="if(this.value)openAssignForm('${ev.id}','${b.id}',this.value);this.value=''">
@@ -951,12 +984,16 @@ function renderBoard(ev){
 }
 function renderResearch(sourceEventId,sourceEventName,filterAll){
   const pendCount=pendingResearchEntries().length;
-  const items=(state.research||[]).filter(r=>filterAll||r.sourceEventId===sourceEventId);
+  const rRetracted=retractedIdSet(state.research);
+  const rDispatched=new Set();
+  (state.research||[]).forEach(r=>{ if(r.kind==='dispatch'&&r.ref&&Array.isArray(r.ref.entryIds)) r.ref.entryIds.forEach(id=>rDispatched.add(id)); });
+  const items=(state.research||[]).filter(r=>(filterAll||r.sourceEventId===sourceEventId)&&r.kind!=='retract'&&!rRetracted.has(r.id));
   const inputId='researchInput_'+sanitizeKey(sourceEventId);
   return `<details class="research">
     <summary>🔬 연구 보드${pendCount?` <span class="rsrc">대기 ${pendCount}</span>`:''}</summary>
     <div class="boardlog" style="margin-top:10px">
       ${items.map(r=>`<div class="bmsg k-${esc(r.kind)}">
+        ${((r.kind==='idea'||r.kind==='plan')&&!rDispatched.has(r.id))?`<button class="bx" title="기록 취소(숨김)" onclick="retractResearchEntry('${r.id}')">✕</button>`:''}
         <div class="bmeta">${boardEntryLabel(r.kind)} <span class="bauthor">${esc(r.author)}</span> · ${esc((r.at||'').slice(0,16).replace('T',' '))}<span class="rsrc">${esc(r.sourceEventName||'전체')}</span></div>
         <div class="btext">${esc(r.text)}${r.kind==='dispatch'?reqChip(r.ref&&r.ref.requestId,'ministry.research'):''}</div>
       </div>`).join('')||'<div class="muted" style="padding:6px 0">아직 아이디어가 없습니다</div>'}
