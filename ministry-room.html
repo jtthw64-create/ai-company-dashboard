@@ -232,6 +232,18 @@
   </div>
 </dialog>
 
+<dialog id="dispatchDlg">
+  <h3 id="dispatchDlgTitle">접수 내용 확인</h3>
+  <div class="f"><label>디스패처로 보낼 내용 (수정 가능)</label>
+    <textarea id="dispatchDlgText" style="width:100%;min-height:120px;border:1px solid var(--line);border-radius:8px;padding:9px 11px;font:inherit;font-size:13.5px;background:var(--paper);resize:vertical"></textarea></div>
+  <div class="dact" style="justify-content:flex-end">
+    <div style="display:flex;gap:8px">
+      <button class="btn ghost" onclick="resolveDispatchDlg(null)">취소</button>
+      <button class="btn" onclick="resolveDispatchDlg(document.getElementById('dispatchDlgText').value)">전송</button>
+    </div>
+  </div>
+</dialog>
+
 <script>
 const KEY='church-orch-v1';            /* 로컬 캐시 (v1과 호환) */
 const CONFIG_KEY='church-orch-config-v1';
@@ -465,12 +477,27 @@ function submitAssign(eid,entryId){
   touchEvent(ev); save(); render();
   toast('세션에 배정했습니다');
 }
+/* 접수 확인창 — 페이지 내 dialog. (브라우저 내장 prompt()는 Safari 웹앱(독 추가 창)에서
+   지원되지 않아 조용히 null 반환 → 접수가 무산됨. 반드시 이 dialog를 쓸 것.) */
+let _dispatchDlgResolve=null;
+function confirmDispatchText(draft,title){
+  return new Promise(res=>{
+    _dispatchDlgResolve=res;
+    document.getElementById('dispatchDlgTitle').textContent=title||'접수 내용 확인';
+    document.getElementById('dispatchDlgText').value=draft;
+    document.getElementById('dispatchDlg').showModal();
+  });
+}
+function resolveDispatchDlg(v){
+  document.getElementById('dispatchDlg').close();
+  const r=_dispatchDlgResolve; _dispatchDlgResolve=null; if(r) r(v);
+}
 async function dispatchBoard(eid){
   const ev=state.events.find(e=>e.id===eid); if(!ev) return;
   const pend=pendingBoardEntries(ev);
   if(!pend.length){ toast('접수할 새 내용이 없습니다'); return; }
   const draft=`[사역/${ev.name}/회의록] `+pend.map(p=>p.text).join(' / ');
-  const edited=prompt('접수 내용을 확인·수정하세요 (취소하면 전송하지 않습니다)',draft);
+  const edited=await confirmDispatchText(draft,'회의 내용 접수 확인');
   if(edited===null) return;
   const text=edited.trim(); if(!text) return;
   const id=await sendMinistryRequest(text,'free');
@@ -811,7 +838,7 @@ async function dispatchResearch(){
   const pend=pendingResearchEntries();
   if(!pend.length){ toast('접수할 아이디어가 없습니다'); return; }
   const draft='[사역/연구] '+pend.map(p=>`(${p.sourceEventName||'전체'}) `+p.text).join(' / ');
-  const edited=prompt('연구 실행 요청 내용을 확인·수정하세요 (취소하면 전송하지 않습니다)',draft);
+  const edited=await confirmDispatchText(draft,'연구 실행 요청 확인');
   if(edited===null) return;
   const text=edited.trim(); if(!text) return;
   const id=await sendMinistryRequest(text,'ministry.research');
