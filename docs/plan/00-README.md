@@ -43,8 +43,14 @@
 
 ## 지금 바로 시작하려면 (사용자)
 
-1. 이 PR을 검토·병합(또는 브랜치 상태로 진행해도 됨).
-2. **iMac 빌더**: nurisimac Cowork에서 `03`의 블록 A+B 붙여넣기 → P1의 iMac 단계들이 먼저 소화됨.
-3. **원격 빌더**: claude.ai/code 새 세션(Sonnet 5)에 블록 A → 원격 가능 단계 진행.
-4. 빌더가 "게이트 준비 완료"라고 하면: 새 세션(Opus 4.8)에 `04` 블록 → 판정.
+1. 이 PR을 검토·병합(또는 브랜치 상태로 진행해도 됨 — 아래 명령에 브랜치 체크아웃 포함).
+2. **iMac 빌더 (Claude Code CLI, 권장 선행)** — 터미널에서:
+   ```bash
+   git clone https://github.com/jtthw64-create/ai-company-dashboard.git ~/ai-company-dashboard  # 최초 1회
+   cd ~/ai-company-dashboard && git checkout claude/ai-automation-system-plan-b3dzlo            # 병합 전일 때만
+   git pull && claude --model claude-sonnet-5
+   ```
+   세션에 붙여넣기: `너는 빌더(Sonnet 5)다. docs/plan/03-kickoff-sonnet5.md의 블록 A와 B를 그대로 지시로 삼아 '첫 15분 프로토콜'부터 시작하라.`
+3. **원격 빌더**: claude.ai/code 새 세션(repo 선택, 모델 Sonnet 5) → `03` 상단 ②의 한 줄 붙여넣기.
+4. **검수**: 빌더가 "게이트 준비 완료"라고 하면 — iMac CLI `claude --model claude-opus-4-8` 또는 claude.ai/code 새 세션(Opus 4.8)에 붙여넣기: `너는 검수자(Opus 4.8)다. docs/plan/04-kickoff-opus48.md의 복붙 블록을 그대로 지시로 삼아 07의 최신 기록을 판정하라.`
 5. `02` §3 결정 대기 6건은 편할 때 채팅/PR 코멘트로 답하면 됨.

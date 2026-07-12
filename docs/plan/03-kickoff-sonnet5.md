@@ -1,9 +1,30 @@
 # 03 — Sonnet 5 빌더 킥오프 프롬프트
 
-> 사용 방법(사용자): 아래 ▼복붙 블록▼을 **새 세션**에 붙여넣는다.
-> - **원격 빌더**: claude.ai/code(웹)에서 repo `jtthw64-create/ai-company-dashboard` 세션 생성, 모델 Sonnet 5 선택 → 블록 A 붙여넣기.
-> - **iMac 빌더**: nurisimac Cowork(또는 로컬 Claude Code)에서 repo 클론/열기 → 블록 A + 블록 B(iMac 부록) 붙여넣기.
-> - 세션이 죽거나 컨텍스트가 넘치면: **같은 블록을 새 세션에 다시 붙여넣으면 된다**(원장 07에서 이어서 재개하도록 설계됨).
+> 사용 방법(사용자) — 두 환경, 각각 복붙 2번이면 끝.
+>
+> **① iMac 빌더 — Claude Code CLI (터미널)**
+> ```bash
+> # 최초 1회: repo 준비 (위치는 자유 — 예시는 홈 폴더)
+> git clone https://github.com/jtthw64-create/ai-company-dashboard.git ~/ai-company-dashboard
+> cd ~/ai-company-dashboard
+> git checkout claude/ai-automation-system-plan-b3dzlo   # PR 병합 전일 때만. 병합 후엔 main 그대로.
+>
+> # 이후 매번: 최신화 후 빌더 세션 시작 (Sonnet 5)
+> cd ~/ai-company-dashboard && git pull && claude --model claude-sonnet-5
+> ```
+> 세션이 열리면 아래 한 줄을 붙여넣는다:
+> ```
+> 너는 빌더(Sonnet 5)다. docs/plan/03-kickoff-sonnet5.md를 열어 ▼복붙 블록 A▼와 ▼복붙 블록 B▼를 그대로 너에 대한 지시로 삼고, '첫 15분 프로토콜'부터 시작하라.
+> ```
+>
+> **② 원격 빌더 — claude.ai/code 새 세션**: repo `jtthw64-create/ai-company-dashboard` 선택, 모델 **Sonnet 5** 선택 후 아래를 붙여넣는다:
+> ```
+> git fetch origin claude/ai-automation-system-plan-b3dzlo 하여 해당 브랜치를 체크아웃하라(docs/plan/이 이미 main에 병합돼 있으면 main 그대로). 그 다음 docs/plan/03-kickoff-sonnet5.md의 ▼복붙 블록 A▼를 그대로 너에 대한 지시로 삼아 실행하라. 너는 원격 빌더이므로 블록 B는 무시한다.
+> ```
+>
+> - 권장 순서: **iMac CLI 빌더 먼저**(G1의 iMac 단계·스킬 수집이 선행 다수) → 원격 빌더는 병행 가능.
+> - CLI 첫 실행 시 폴더 신뢰·도구 권한 프롬프트가 뜨면 승인한다(정상 동작).
+> - 세션이 죽거나 컨텍스트가 넘치면: **같은 명령·같은 한 줄을 새 세션에 다시 붙여넣으면 된다**(원장 07에서 이어서 재개하도록 설계됨).
 
 ---
 
@@ -46,7 +67,7 @@ repo의 docs/plan/02-master-plan.md 에 정의된 빌드 단계(P0~P6)를 순서
 P6-S3까지 실행되고 G3 PASS가 08에 기록되면, 최종 요약(산출물 목록·미해결 큐·정리 후보)을 출력하고 종료한다.
 ```
 
-## ▼복붙 블록 B — iMac Cowork 세션 전용 부록 (블록 A에 이어 붙임)▼
+## ▼복붙 블록 B — iMac 로컬 세션(Claude Code CLI) 전용 부록▼
 
 ```
 ## iMac 전용 추가 지침
@@ -54,7 +75,7 @@ P6-S3까지 실행되고 G3 PASS가 08에 기록되면, 최종 요약(산출물 
 - 로컬 실측부터: ls ~/.claude/skills/ 2>/dev/null ; ls "$HOME/Library/CloudStorage/Dropbox" 2>/dev/null | head ; launchctl list | grep -iE "claude|dispatch|aicompany" ; crontab -l 2>/dev/null — 결과를 07 프로브 절에 기록(V-01 겸용).
 - 디스패처 상주 세션·지시문을 발견하면 실물을 변경하기 전에 반드시 사본을 ops/에 커밋한다(FIX-01). 디스패처 지시문 수정(FIX-11/12, P3-S5)은 수정 전 지시문 백업 후 진행.
 - Dropbox·Obsidian 볼트 등 로컬 파일 조작은 전역 CLAUDE.md의 파일 수정 안전 규칙(백업·2회 실패 중단)을 그대로 따른다.
-- claude.ai 스킬 재업로드가 필요한 단계(P3-S2, P3-S4 업로드)는 skill-creator 스킬을 사용하되, 업로드 직전 사용자 확인 1회를 받는다(스킬 스토어 반영은 되돌리기 어려움).
+- 스킬 제작·수정 단계(P3-S2, P3-S4)는 skill-creator 규격(SKILL.md 형식)으로 repo와 ~/.claude/skills에 파일을 만든다. claude.ai(웹) 스킬 목록 반영은 CLI에서 불가능하므로 [USER] 단계다 — "수정된 스킬 파일 경로 + 웹 업로드 안내"를 07에 기록하고 사용자에게 요청하라.
 - 주의: 이 머신은 운영 중인 디스패처가 1분 폴링을 돌고 있을 수 있다. Gist·접수함을 수동으로 만지면 디스패처와 경합할 수 있으니, 테스트 요청은 반드시 대시보드 UI 또는 02의 P5 시나리오 절차로만 주입한다.
 ```
 
