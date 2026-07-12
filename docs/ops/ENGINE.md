@@ -59,7 +59,7 @@ Gist `worklog[]`(company-status.json 최상위)는 **최근 48시간분만**의 
 1. `gh auth login`으로 GitHub CLI 인증(gist·repo 스코프).
 2. `~/.aicompany/` 디렉터리 생성: `bin/`(안전 도구함 — 필요 명령만 심볼릭 링크, 예: `gh`·`jq`), `state/`, `dispatcher-poller.sh`(본 문서의 `ops/dispatcher-poller.sanitized.sh`에서 GIST ID를 실제 값으로 치환해 복사).
 3. `~/Library/LaunchAgents/com.aicompany.dispatcher-poller.plist` 배치 후 `launchctl load` (경로는 `devices/<디바이스명>/` 프로파일 참조 — P1-S5 이후 생성).
-4. `~/.claude/skills/dispatch-inbox/`에 `skills/dispatch-inbox/`(P1-S4 이후 이 repo에 편입됨) 사본 배치.
+4. `~/.claude/skills/dispatch-inbox/`에 비공개 컴패니언 repo(`ai-company-internal`, P1-S4 §5 판정 참조)의 `skills/dispatch-inbox/` 사본 배치.
 5. Claude Code에서 scheduled-tasks(Routine) 3개(04:00/18:00/23:00 KST, 본문은 위 "동결 프롬프트" 그대로) 등록.
 6. `AI Company/COMPANY.md`·`gist-config.md`를 Dropbox 동기화 폴더에서 확보(별도 백업 채널 — 이 repo 밖).
 7. 검증: 접수함에 테스트 `free` 요청 1건 주입 → 60초 내 레인 A가 처리하는지 확인(대시보드 UI 또는 `docs/plan/02-master-plan.md` P5 시나리오 절차로만 — 수동 Gist 조작 금지, 레인 A와 경합 위험).
