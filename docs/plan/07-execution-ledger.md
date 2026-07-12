@@ -7,7 +7,7 @@
 
 | 일시(KST) | 세션 환경 | git 브랜치 | 실행 가능 태그 | 프로브 출력 요약 |
 |---|---|---|---|---|
-| _(P0-S1에서 기록)_ | | | | |
+| 2026-07-12 12:58 | iMac Claude Code CLI (nurisimac, Sonnet 5) | claude/ai-automation-system-plan-b3dzlo | [ANY] (IMAC-ONLY 포함) | date=2026-07-12 12:58:51 KST · gh auth status=✓ jtthw64-create(gist,read:org,repo,workflow) · ls ~/.claude/skills=8개(dispatch-inbox·find-skills·frontend-design·notebooklm·notebooklm-reports-code·research-index·web-design-guidelines·wiki-note) · Dropbox 읽기=승인 없이 즉시 성공(로컬 CLI라 마운트 직접 접근) · Google Drive 읽기=성공(로컬 마운트) · launchctl: `com.aicompany.dispatcher-poller` 활성 확인(운영 중 — 접수함 수동 조작 시 경합 주의) · crontab -l=비어있음 |
 
 ## 2. 단계 진행 표
 
@@ -15,7 +15,7 @@
 
 | 단계 ID | 상태 | 커밋 SHA | 증거 (명령 출력·파일 경로·스크린샷 설명 붙여넣기) | 일시(KST) |
 |---|---|---|---|---|
-| P0-S1 | todo | | | |
+| P0-S1 | done | (기록 시점, 다음 커밋에 포함) | 위 능력 프로브 표 참조 | 2026-07-12 12:58 |
 | P1-S1 | todo | | | |
 | P1-S2 | todo | | | |
 | P1-S3 | todo | | | |
