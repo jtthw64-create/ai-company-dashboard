@@ -1056,9 +1056,20 @@ function renderResearch(sourceEventId,sourceEventName,filterAll){
 }
 
 /* ---------- 렌더 ---------- */
+/* 행사 완결 판정: 진행률 100% 이거나, 종료일(미설정 시 시작일)이 지나면 무조건 완료로 본다.
+   ev.intake(접수 워크플로 상태)와 무관하게 사용자가 보는 배지는 '행사가 끝났는가'를 반영한다.
+   날짜 비교는 자정 기준 epoch(getTime)로 — ddayEv와 동일 패턴(ISO 문자열 직접 비교 금지). */
+function eventComplete(ev){
+  if(progress(ev)>=100) return true;
+  const s=evStart(ev); if(!s) return false;
+  const today=new Date().setHours(0,0,0,0);
+  const end=new Date((evEnd(ev)||s)+'T00:00:00').getTime();
+  return today>end;   /* 종료일 다음날부터 완료('행사 중'=종료 당일까지, ddayEv와 경계 일치) */
+}
 function intakeBadge(ev){
-  const cls=ev.intake==='new'?'new':ev.intake==='done'?'done-intake':'accepted';
-  return `<span class="badge ${cls}">${INTAKELABEL[ev.intake]||''}</span>`;
+  const key=(ev.intake==='done'||eventComplete(ev))?'done':ev.intake;
+  const cls=key==='new'?'new':key==='done'?'done-intake':'accepted';
+  return `<span class="badge ${cls}">${INTAKELABEL[key]||''}</span>`;
 }
 function render(){
   const app=document.getElementById('app');
