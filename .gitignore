@@ -1,0 +1,3 @@
+# 로컬 편집 백업 (HTML 수정 전 .bak 규약, CLAUDE.md) — 디스크에만 두고 repo엔 커밋하지 않음
+*.bak
+*.bak-*
