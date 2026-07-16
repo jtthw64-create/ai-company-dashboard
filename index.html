@@ -121,6 +121,7 @@
     </div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <button class="btn ghost" onclick="openSettings()">동기화 설정</button>
+      <button class="btn ghost" onclick="forceRound()" title="정기 회차(04·18·23시)와 동일한 전체 회차를 지금 1회 실행합니다 — 상태갱신·접수함 처리 포함. 디스패처가 1분 내 집어갑니다">지금 강제 회차</button>
       <button class="btn" onclick="refresh(true)" title="gist에서 최신 상태를 다시 불러옵니다 (실행 아님 — 자동실행을 깨우지 않음)">새로고침</button>
     </div>
   </header>
@@ -304,6 +305,14 @@ function addAction(team,action,when,needsText){
   pushMutation(d=>{ d.requests=d.requests||[]; d.requests.push(req); },
     '접수됨 — 버튼은 1분 내 자동 처리 (배치·개발구현은 04/18/23 정기 회차)');
   if(needsText){ const inp=document.getElementById('ord_'+team); if(inp) inp.value=''; }
+}
+/* 강제 전체 회차 — 정기 회차(04/18/23시)와 동일한 상태갱신+접수함 처리를 지금 1회 트리거 */
+function forceRound(){
+  const now=nowKST();
+  pushMutation(d=>{
+    d.requests=d.requests||[];
+    d.requests.push({id:'r-'+Date.now().toString(36),at:now,team:'secretary',action:'company.round',text:'강제 전체 회차',status:'new',updatedAt:now});
+  },'강제 회차 접수됨 — 1분 내 디스패처가 정기 회차와 동일하게 실행합니다');
 }
 /* 자유 텍스트 지시 — 화이트리스트 아님 → 사용자 실행(디스패처가 user로 표시) */
 function addRequest(team){
