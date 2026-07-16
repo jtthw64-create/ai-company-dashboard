@@ -163,7 +163,7 @@ const ACTIONS={
   dev:[{a:'dev.implement',l:'지금 구현',w:'now'},{a:'dev.implement',l:'새벽 5시 구현',w:'0500'},{a:'dev.verify',l:'run-verify'}],
   business:[{a:'biz.launch',l:'출시 체크 갱신'},{a:'biz.research',l:'리서치(주제 입력)',needsText:true}],
   ministry:[],
-  secretary:[{a:'company.brief',l:'브리핑 생성'}]
+  secretary:[{a:'company.brief',l:'브리핑 생성'},{a:'company.round',l:'지금 강제 회차'}]
 };
 const STATUS_LABEL={new:'접수',running:'실행 중',dispatched:'실행 예약',queued:'정기 회차 대기',seen:'확인',user:'사용자 실행',done:'완료'};
 let config={}, data=null, pollTimer=null, pendingRender=false, busy=false, gistFiles=null;
