@@ -327,6 +327,10 @@ function markDone(id){
 /* ---------- 유틸 ---------- */
 function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2600); }
 function esc(s){ return (s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+/* 배열 방어(2026-07-17): gist 필드가 스키마를 어겨 배열이 아닌 값(문자열 등)으로 와도 화면이 죽지 않게.
+   실장애: 디스패처가 teams[].dday에 "D-8"(문자열)을 써서 (t.dday||[]).map 이 터져 상황판 전면 백지화.
+   `||[]`·`&&.length` 가드는 truthy 문자열을 통과시켜 무력하다 — 타입을 직접 확인해야 한다. */
+function arr(v){ return Array.isArray(v)?v:[]; }
 function ddayOf(dateStr){ if(!dateStr) return null;
   const t=new Date().setHours(0,0,0,0); const d=new Date(dateStr+'T00:00:00');
   const diff=Math.ceil((d-t)/864e5);
@@ -342,7 +346,7 @@ function nowKST(){ return new Date(Date.now()+9*3600e3).toISOString().replace('Z
 function fmtAt(iso){ if(!iso) return ''; const t=Date.parse(iso); if(isNaN(t)) return '';
   return new Date(t+9*3600e3).toISOString().slice(5,16).replace('T',' '); }
 function copyPromptBtn(teamId,idx){
-  const t=(data.teams||[]).find(x=>x.id===teamId);
+  const t=arr(data.teams).find(x=>x.id===teamId);
   const p=t&&t.prompts&&t.prompts[idx];
   if(!p) return;
   copyText(p.prompt,'프롬프트를 복사했습니다 — Claude에 붙여넣으세요');
@@ -397,11 +401,11 @@ function render(){
     html+=`<div class="brief"><h2>주간 보고</h2><div class="body">${esc(data.weekly.summary||'')}</div>
       <div class="meta">${fmtAt(data.weekly.at)}${data.weekly.file?' · '+esc(data.weekly.file):''}</div></div>`;
   }
-  if(data.alerts&&data.alerts.length){
-    html+=`<div class="alerts show"><b>알림</b><ul>${data.alerts.map(a=>`<li>${esc(a)}</li>`).join('')}</ul></div>`;
+  if(arr(data.alerts).length){
+    html+=`<div class="alerts show"><b>알림</b><ul>${arr(data.alerts).map(a=>`<li>${esc(a)}</li>`).join('')}</ul></div>`;
   }
-  html+=`<div class="grid">`+(data.teams||[]).map(t=>{
-    const dd=(t.dday||[]).map(d=>{ const x=ddayOf(d.date); return x?`<span class="pdday ${x.cls}" title="${esc(d.date)}">${esc(d.label)} ${x.label}</span>`:''; }).join('');
+  html+=`<div class="grid">`+arr(data.teams).map(t=>{
+    const dd=arr(t.dday).map(d=>{ const x=ddayOf(d.date); return x?`<span class="pdday ${x.cls}" title="${esc(d.date)}">${esc(d.label)} ${x.label}</span>`:''; }).join('');
     const docs=[];
     if(gistFiles&&gistFiles['report-'+t.id+'.md']) docs.push(`<button class="btn ghost small" onclick="openDoc('report-${t.id}.md','${esc(t.name)} 최근 보고')">📄 최근 보고</button>`);
     if(t.id==='secretary'&&gistFiles&&gistFiles['briefing-latest.md']) docs.push(`<button class="btn ghost small" onclick="openDoc('briefing-latest.md','최근 브리핑 전문')">📄 브리핑 전문</button>`);
@@ -409,12 +413,12 @@ function render(){
       <div class="top"><h2 class="serif">${esc(t.name)}</h2>${badgeChip(t.badge)}</div>
       <div class="headline">${esc(t.headline||'')}</div>
       ${dd?`<div class="ddayrow">${dd}</div>`:''}
-      ${(t.projects&&t.projects.length)?`<div><div class="sec">PROJECTS</div><ul>${t.projects.map(p=>`<li>${esc(p.name)} — ${esc(p.status)}</li>`).join('')}</ul></div>`:''}
-      ${(t.queue&&t.queue.length)?`<div><div class="sec">QUEUE</div><ul>${t.queue.slice(0,4).map(q=>`<li>${esc(q)}</li>`).join('')}</ul></div>`:''}
-      ${(t.blockers&&t.blockers.length)?`<div class="blocker">${t.blockers.map(esc).join(' · ')}</div>`:''}
+      ${arr(t.projects).length?`<div><div class="sec">PROJECTS</div><ul>${arr(t.projects).map(p=>`<li>${esc(p.name)} — ${esc(p.status)}</li>`).join('')}</ul></div>`:''}
+      ${arr(t.queue).length?`<div><div class="sec">QUEUE</div><ul>${arr(t.queue).slice(0,4).map(q=>`<li>${esc(q)}</li>`).join('')}</ul></div>`:''}
+      ${arr(t.blockers).length?`<div class="blocker">${arr(t.blockers).map(esc).join(' · ')}</div>`:''}
       ${(ACTIONS[t.id]&&ACTIONS[t.id].length)?`<div><div class="sec">바로 실행 (디스패처)</div><div class="actbtns">${ACTIONS[t.id].map(x=>`<button class="act" onclick="addAction('${t.id}','${x.a}',${x.w?`'${x.w}'`:'null'},${x.needsText?'true':'false'})">${esc(x.l)}</button>`).join('')}</div></div>`:''}
       ${docs.length?`<div class="pbtns">${docs.join('')}</div>`:''}
-      ${(t.prompts&&t.prompts.length)?`<div><div class="sec">프롬프트 복사 (인세션 즉시)</div><div class="pbtns">${t.prompts.map((p,i)=>`<button class="btn ghost small" onclick="copyPromptBtn('${t.id}',${i})">${esc(p.label)}</button>`).join('')}</div></div>`:''}
+      ${arr(t.prompts).length?`<div><div class="sec">프롬프트 복사 (인세션 즉시)</div><div class="pbtns">${arr(t.prompts).map((p,i)=>`<button class="btn ghost small" onclick="copyPromptBtn('${t.id}',${i})">${esc(p.label)}</button>`).join('')}</div></div>`:''}
       <div class="order"><input id="ord_${t.id}" placeholder="${esc(t.name)}에 자유 지시 입력…" onkeydown="if(event.key==='Enter')addRequest('${t.id}')"><button class="btn small" onclick="addRequest('${t.id}')">▶ 실행</button></div>
       ${t.lastRun?`<div class="lastrun">최근: ${fmtAt(t.lastRun.at)} — ${esc(t.lastRun.summary||'')}</div>`:''}
     </div>`;
@@ -446,7 +450,7 @@ function render(){
     <div class="footnote">이 페이지가 <b>커맨드센터</b>입니다 — 팀 카드의 <b>[▶ 실행]</b> 버튼을 누르면 요청이 전달되고 <b>1분 내</b> 자동 처리됩니다(입력만으로는 실행되지 않음). 배치·개발구현은 정기 회차(04·18·23시)에 실행. 상태는 정기 회차에 갱신, [새로고침]은 화면만 다시 불러옵니다. 각 팀 원장이 항상 우선 · 팀별 상세는 상단 <b>팀 회의실</b> · 행사 실행은 <a href="https://jtthw64-create.github.io/ai-company-dashboard/ministry-room.html">사역팀 회의실</a></div>`;
   app.innerHTML=html;
 }
-function teamName(id){ const t=(data&&data.teams||[]).find(x=>x.id===id); return t?t.name:(id||''); }
+function teamName(id){ const t=arr(data&&data.teams).find(x=>x.id===id); return t?t.name:(id||''); }
 
 /* ---------- 시작 ---------- */
 function load(){
