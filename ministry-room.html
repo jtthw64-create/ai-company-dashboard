@@ -753,7 +753,7 @@ function importData(inp){
 
 /* ---------- 유틸 ---------- */
 function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2200); }
-function esc(s){ return (s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function esc(s){ return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function evStart(ev){ return ev.dateStart||ev.date||''; }
 function evEnd(ev){ return ev.dateEnd||''; }
 function rangeText(ev){ const s=evStart(ev),e=evEnd(ev); if(!s) return ''; return (e&&e!==s)? s+' ~ '+e : s; }

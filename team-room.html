@@ -179,7 +179,7 @@ document.title=CFG.name;
 let config={}, room={items:[],notes:'',updatedAt:'',rev:0}, companyTeam=null, companyReqMap={}, roomsData=null;
 let pushTimer=null, pollTimer=null, panel={}, busy=false;
 
-function esc(s){return(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2200);}
 function isEditing(){const a=document.activeElement;return !!a&&['INPUT','TEXTAREA'].includes(a.tagName);}
 function loadConfig(){try{config=JSON.parse(localStorage.getItem(CONFIG_KEY))||{};}catch(e){config={};}}
