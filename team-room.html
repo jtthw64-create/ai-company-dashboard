@@ -145,7 +145,10 @@
   <h3>동기화 설정</h3>
   <div class="f"><label>GitHub 토큰 (gist 권한)</label><input id="sToken" type="password" placeholder="ghp_… 또는 github_pat_…">
     <div class="hint">이 브라우저 localStorage에만 저장됩니다. 저장소·gist에 기록 금지.</div></div>
-  <div class="hint">gist ID는 회의실마다 코드에 고정되어 있습니다 (팀 데이터 + 컴퍼니 접수함 공용 토큰).</div>
+  <div class="f"><label>Company 접수함 Gist ID</label><input id="sGistCompany" placeholder="company gist ID">
+    <div class="hint">Dropbox의 AI Company/gist-config.md 참조.</div></div>
+  <div class="f"><label>Team Rooms Gist ID</label><input id="sGistRooms" placeholder="rooms gist ID">
+    <div class="hint">Dropbox의 AI Company/gist-config.md 참조.</div></div>
   <div class="dact"><button class="btn ghost" onclick="document.getElementById('setDlg').close()">닫기</button>
     <button class="btn" onclick="saveSettings()">저장 후 동기화</button></div>
 </dialog>
@@ -160,9 +163,7 @@ const TEAMS={
   business:{name:'사업팀 회의실', accent:'#8A5B14', accentSoft:'#F7ECD8', ledger:'Hubrary 출시 준비 + 사업 리서치',
     actions:[{a:'biz.launch',l:'출시 체크 갱신'},{a:'biz.research',l:'리서치(주제 입력)',needsText:true}]}
 };
-const COMPANY_GIST_ID='d89a7a312a792226da963ddc66e6ee35';  /* H-008 로테이션(2026-07-13) */
 const COMPANY_GIST_FILE='company-status.json';
-const ROOMS_GIST_ID='7edb21d18c0f1713882a865981629d52';  /* H-008 로테이션(2026-07-13) */
 const ROOMS_GIST_FILE='company-teamrooms.json';
 const CONFIG_KEY='ai-company-teamroom-config-v1';
 const POLL_MS=60000;
@@ -184,10 +185,18 @@ function isEditing(){const a=document.activeElement;return !!a&&['INPUT','TEXTAR
 function loadConfig(){try{config=JSON.parse(localStorage.getItem(CONFIG_KEY))||{};}catch(e){config={};}}
 function saveConfig(){try{localStorage.setItem(CONFIG_KEY,JSON.stringify(config));}catch(e){}}
 function openSettings(){loadConfig();
-  let tok=config.token||'';
-  if(!tok){try{const cc=JSON.parse(localStorage.getItem('ai-company-config-v1'))||{};if(cc.token)tok=cc.token;}catch(e){}}
-  document.getElementById('sToken').value=tok;document.getElementById('setDlg').showModal();}
-function saveSettings(){config.token=document.getElementById('sToken').value.trim();saveConfig();document.getElementById('setDlg').close();fullSync(true);}
+  let tok=config.token||'', companyGistId=config.companyGistId||'';
+  if(!tok||!companyGistId){try{const cc=JSON.parse(localStorage.getItem('ai-company-config-v1'))||{};
+    if(!tok&&cc.token)tok=cc.token; if(!companyGistId&&cc.gistId)companyGistId=cc.gistId;}catch(e){}}
+  document.getElementById('sToken').value=tok;
+  document.getElementById('sGistCompany').value=companyGistId;
+  document.getElementById('sGistRooms').value=config.roomsGistId||'';
+  document.getElementById('setDlg').showModal();}
+function saveSettings(){
+  config.token=document.getElementById('sToken').value.trim();
+  config.companyGistId=document.getElementById('sGistCompany').value.trim();
+  config.roomsGistId=document.getElementById('sGistRooms').value.trim();
+  saveConfig();document.getElementById('setDlg').close();fullSync(true);}
 function ghHeaders(json){const h={Accept:'application/vnd.github+json'};if(config.token)h.Authorization='Bearer '+config.token;if(json)h['Content-Type']='application/json';return h;}
 function setSync(mode,msg){const d=document.getElementById('syncDot'),t=document.getElementById('syncText');
   d.className='dot '+(mode==='ok'?'ok':mode==='syncing'?'syncing':mode==='err'?'err':'');
@@ -201,9 +210,9 @@ async function gistGet(id,file){
   return {json:JSON.parse(c),files:j.files};
 }
 async function pullCompany(){
-  if(!config.token) return;
+  if(!config.token||!config.companyGistId) return;
   try{
-    const {json}=await gistGet(COMPANY_GIST_ID,COMPANY_GIST_FILE);
+    const {json}=await gistGet(config.companyGistId,COMPANY_GIST_FILE);
     if(!json) return;
     companyTeam=(json.teams||[]).find(t=>t.id===TEAM)||null;
     const m={};(json.requests||[]).forEach(r=>m[r.id]={status:r.status,result:r.result});companyReqMap=m;
@@ -211,27 +220,27 @@ async function pullCompany(){
   }catch(e){}
 }
 async function pullRoom(){
-  if(!config.token) return;
+  if(!config.token||!config.roomsGistId) return;
   try{
-    const {json}=await gistGet(ROOMS_GIST_ID,ROOMS_GIST_FILE);
+    const {json}=await gistGet(config.roomsGistId,ROOMS_GIST_FILE);
     if(!json) return; roomsData=json;
     const r=(json.rooms&&json.rooms[TEAM])||{items:[],notes:'',updatedAt:'',rev:0};
     if((r.updatedAt||'')>=(room.updatedAt||'')) room=r;
   }catch(e){}
 }
 async function fullSync(manual){
-  if(!config.token){setSync('local');render();if(manual)openSettings();return;}
+  if(!config.token||!config.companyGistId||!config.roomsGistId){setSync('local');render();if(manual)openSettings();return;}
   if(busy)return; busy=true; setSync('syncing');
   try{ await pullRoom(); await pullCompany(); setSync('ok'); if(!isEditing())render(); }
   catch(e){ setSync('err',e.message);} busy=false;
 }
 function schedulePush(){
   cacheWrite();
-  if(!config.token){setSync('local');return;}
+  if(!config.token||!config.roomsGistId){setSync('local');return;}
   setSync('syncing'); clearTimeout(pushTimer);
   pushTimer=setTimeout(async()=>{
     try{
-      const {json}=await gistGet(ROOMS_GIST_ID,ROOMS_GIST_FILE);
+      const {json}=await gistGet(config.roomsGistId,ROOMS_GIST_FILE);
       const data=json||{version:1,rooms:{},deletedIds:[]};
       data.rooms=data.rooms||{};
       const remote=data.rooms[TEAM];
@@ -239,7 +248,7 @@ function schedulePush(){
       if(!remote||(room.updatedAt||'')>=(remote.updatedAt||'')) data.rooms[TEAM]=room;
       else { room=remote; }
       data.updatedAt=nowKST();
-      await fetch('https://api.github.com/gists/'+ROOMS_GIST_ID,{method:'PATCH',headers:ghHeaders(true),
+      await fetch('https://api.github.com/gists/'+config.roomsGistId,{method:'PATCH',headers:ghHeaders(true),
         body:JSON.stringify({files:{[ROOMS_GIST_FILE]:{content:JSON.stringify(data,null,1)}}})});
       setSync('ok'); if(!isEditing())render();
     }catch(e){setSync('err',e.message);}
@@ -255,17 +264,17 @@ function nowKST(){ return new Date(Date.now()+9*3600e3).toISOString().replace('Z
 
 /* ===== 실행 요청 (회사 접수함으로 제출) ===== */
 async function sendRequest(text,action,when){
-  if(!config.token){toast('먼저 동기화 설정에서 토큰을 입력해 주세요');openSettings();return null;}
+  if(!config.token||!config.companyGistId){toast('먼저 동기화 설정에서 토큰과 Gist ID를 입력해 주세요');openSettings();return null;}
   const id='r-'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
   const now=nowKST();
   try{
-    const {json}=await gistGet(COMPANY_GIST_ID,COMPANY_GIST_FILE);
+    const {json}=await gistGet(config.companyGistId,COMPANY_GIST_FILE);
     if(!json)throw new Error('company gist 없음');
     json.requests=json.requests||[];
     const req={id,at:now,team:TEAM,action:action||'free',text,status:'new',updatedAt:now};
     if(when)req.when=when;
     json.requests.push(req);
-    const r=await fetch('https://api.github.com/gists/'+COMPANY_GIST_ID,{method:'PATCH',headers:ghHeaders(true),
+    const r=await fetch('https://api.github.com/gists/'+config.companyGistId,{method:'PATCH',headers:ghHeaders(true),
       body:JSON.stringify({files:{[COMPANY_GIST_FILE]:{content:JSON.stringify(json,null,1)}}})});
     if(!r.ok)throw new Error('HTTP '+r.status);
     companyReqMap[id]={status:'new'};

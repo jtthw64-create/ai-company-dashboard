@@ -228,8 +228,10 @@
   <h3>동기화 설정</h3>
   <div class="f"><label>GitHub 토큰 (gist 권한만)</label><input id="sToken" type="password" placeholder="ghp_... 또는 github_pat_...">
     <div class="hint">이 브라우저의 localStorage에만 저장됩니다. 저장소·Gist에 절대 기록하지 마세요.</div></div>
-  <input id="sGist" type="hidden">
-  <div class="hint">행사 데이터 저장소는 코드에 내장되어 있습니다 — <b>토큰만</b> 입력하면 됩니다.</div>
+  <div class="f"><label>행사 데이터 Gist ID</label><input id="sGist" placeholder="church gist ID">
+    <div class="hint">Dropbox의 AI Company/gist-config.md 참조.</div></div>
+  <div class="f"><label>Company 접수함 Gist ID</label><input id="sGistCompany" placeholder="company gist ID">
+    <div class="hint">실행 요청 전달처. Dropbox의 AI Company/gist-config.md 참조.</div></div>
   <div class="dact" style="justify-content:flex-end">
     <div style="display:flex;gap:8px">
       <button class="btn ghost" onclick="document.getElementById('setDlg').close()">닫기</button>
@@ -254,9 +256,6 @@
 const KEY='church-orch-v1';            /* 로컬 캐시 (v1과 호환) */
 const CONFIG_KEY='church-orch-config-v1';
 const DATA_FILE='church-orch-data.json';
-/* 교회 행사 데이터 gist — 코드에 내장(다른 팀 회의실처럼 토큰만 입력하면 됨, 별도 ID 입력 불필요) */
-const DEFAULT_GIST_ID='3b36654d963645396660f8dfcacc568c';  /* H-008 로테이션(2026-07-13) */
-const COMPANY_GIST_ID='d89a7a312a792226da963ddc66e6ee35';  /* AI Company 상황판 접수함 — 실행 요청 전달처. H-008 로테이션(2026-07-13) */
 const COMPANY_GIST_FILE='company-status.json';
 const REQ_LABEL={new:'접수',running:'실행 중',dispatched:'실행 예약',queued:'정기 회차 대기',seen:'확인',user:'사용자 실행',done:'완료',cancelled:'회수됨'};
 
@@ -305,16 +304,17 @@ document.addEventListener('focusout', ()=>{
 }, true);
 
 /* ---------- 설정 ---------- */
-function loadConfig(){ try{ config=JSON.parse(localStorage.getItem(CONFIG_KEY))||{}; }catch(e){ config={}; }
-  if(!config.gistId) config.gistId=DEFAULT_GIST_ID; /* gist ID 내장 — 사용자는 토큰만 입력 */ }
+function loadConfig(){ try{ config=JSON.parse(localStorage.getItem(CONFIG_KEY))||{}; }catch(e){ config={}; } }
 function persistConfig(){ try{ localStorage.setItem(CONFIG_KEY,JSON.stringify(config)); }catch(e){} }
 function openSettings(){ loadConfig();
   document.getElementById('sToken').value=config.token||'';
   document.getElementById('sGist').value=config.gistId||'';
+  document.getElementById('sGistCompany').value=config.companyGistId||'';
   document.getElementById('setDlg').showModal(); }
 async function saveSettings(){
   config.token=document.getElementById('sToken').value.trim();
-  config.gistId=document.getElementById('sGist').value.trim()||DEFAULT_GIST_ID;
+  config.gistId=document.getElementById('sGist').value.trim();
+  config.companyGistId=document.getElementById('sGistCompany').value.trim();
   persistConfig();
   document.getElementById('setDlg').close();
   await syncNow();
@@ -364,11 +364,11 @@ async function remoteGet(){
 /* ---------- AI Company 접수함 연동 (실행 요청 제출 + 상태 조회, 읽기·쓰기 모두 requests[]만) ---------- */
 async function sendMinistryRequest(text,action){
   action=action||'free';
-  if(!config.token){ toast('먼저 동기화 설정에서 토큰을 입력해 주세요'); return null; }
+  if(!config.token||!config.companyGistId){ toast('먼저 동기화 설정에서 토큰과 Company 접수함 Gist ID를 입력해 주세요'); return null; }
   const id='r-'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
   const now=nowKST();
   try{
-    const r=await fetch('https://api.github.com/gists/'+COMPANY_GIST_ID,{headers:ghHeadersOpt()});
+    const r=await fetch('https://api.github.com/gists/'+config.companyGistId,{headers:ghHeadersOpt()});
     if(!r.ok) throw new Error('HTTP '+r.status);
     const j=await r.json(); const f=j.files&&j.files[COMPANY_GIST_FILE];
     if(!f) throw new Error('company gist 파일 없음');
@@ -377,7 +377,7 @@ async function sendMinistryRequest(text,action){
     const data=JSON.parse(content);
     data.requests=data.requests||[];
     data.requests.push({id,at:now,team:'ministry',action,text,status:'new',updatedAt:now});
-    const put=await fetch('https://api.github.com/gists/'+COMPANY_GIST_ID,{method:'PATCH',headers:ghHeadersOpt(true),
+    const put=await fetch('https://api.github.com/gists/'+config.companyGistId,{method:'PATCH',headers:ghHeadersOpt(true),
       body:JSON.stringify({files:{[COMPANY_GIST_FILE]:{content:JSON.stringify(data,null,1)}}})});
     if(!put.ok) throw new Error('HTTP '+put.status);
     companyRequestsMap[id]={status:'new',action};
@@ -385,9 +385,9 @@ async function sendMinistryRequest(text,action){
   }catch(e){ toast('요청 전송 실패: '+e.message); return null; }
 }
 async function pullCompanyRequests(){
-  if(!config.token) return;
+  if(!config.token||!config.companyGistId) return;
   try{
-    const r=await fetch('https://api.github.com/gists/'+COMPANY_GIST_ID,{headers:ghHeadersOpt()});
+    const r=await fetch('https://api.github.com/gists/'+config.companyGistId,{headers:ghHeadersOpt()});
     if(!r.ok) return;
     const j=await r.json(); const f=j.files&&j.files[COMPANY_GIST_FILE];
     if(!f) return;
@@ -457,8 +457,9 @@ function boardAssignedIds(ev){
 }
 /* 접수 회수 — 디스패처가 아직 집어가지 않은(new) 요청을 취소하고 dispatch 기록을 숨긴다. */
 async function cancelCompanyRequest(id){
+  if(!config.token||!config.companyGistId){ toast('먼저 동기화 설정에서 토큰과 Company 접수함 Gist ID를 입력해 주세요'); return false; }
   try{
-    const r=await fetch('https://api.github.com/gists/'+COMPANY_GIST_ID,{headers:ghHeadersOpt()});
+    const r=await fetch('https://api.github.com/gists/'+config.companyGistId,{headers:ghHeadersOpt()});
     if(!r.ok) throw new Error('HTTP '+r.status);
     const j=await r.json(); const f=j.files&&j.files[COMPANY_GIST_FILE];
     let content=f.content; if(f.truncated){ const rr=await fetch(f.raw_url); content=await rr.text(); }
@@ -467,7 +468,7 @@ async function cancelCompanyRequest(id){
     if(!rq) return true; /* 이미 정리됨 */
     if(rq.status!=='new'){ toast('이미 처리 중이라 회수할 수 없습니다 ('+(REQ_LABEL[rq.status]||rq.status)+')'); return false; }
     rq.status='cancelled'; rq.updatedAt=nowKST();
-    const put=await fetch('https://api.github.com/gists/'+COMPANY_GIST_ID,{method:'PATCH',headers:ghHeadersOpt(true),
+    const put=await fetch('https://api.github.com/gists/'+config.companyGistId,{method:'PATCH',headers:ghHeadersOpt(true),
       body:JSON.stringify({files:{[COMPANY_GIST_FILE]:{content:JSON.stringify(data,null,1)}}})});
     if(!put.ok) throw new Error('HTTP '+put.status);
     companyRequestsMap[id]={status:'cancelled'};
