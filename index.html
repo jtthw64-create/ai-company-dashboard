@@ -326,7 +326,7 @@ function markDone(id){
 
 /* ---------- 유틸 ---------- */
 function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2600); }
-function esc(s){ return (s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function esc(s){ return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 /* 배열 방어(2026-07-17): gist 필드가 스키마를 어겨 배열이 아닌 값(문자열 등)으로 와도 화면이 죽지 않게.
    실장애: 디스패처가 teams[].dday에 "D-8"(문자열)을 써서 (t.dday||[]).map 이 터져 상황판 전면 백지화.
    `||[]`·`&&.length` 가드는 truthy 문자열을 통과시켜 무력하다 — 타입을 직접 확인해야 한다. */
